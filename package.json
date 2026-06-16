@@ -1,0 +1,38 @@
+{
+  "name": "devflow-ci",
+  "version": "1.0.0",
+  "description": "DevFlow CI — Enterprise-grade code review assistant",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon --watch apps --ext ts --exec \"ts-node -r dotenv/config apps/api-gateway/src/index.ts\"",
+    "dev:worker": "nodemon --watch apps --ext ts --exec \"ts-node -r dotenv/config apps/worker/src/worker.ts\"",
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/api-gateway/src/index.js",
+    "start:worker": "node dist/worker/src/worker.js",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No tests yet — Phase 2\" && exit 0"
+  },
+  "keywords": [
+    "ci",
+    "code-review",
+    "github",
+    "webhooks"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^2.8.0",
+    "@octokit/rest": "19.0.13",
+    "bullmq": "^5.78.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "ioredis": "^5.11.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.9.3",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,41 @@
+services:
+  # Database Layer
+  postgres:
+    image: postgres:15-alpine
+    container_name: devflow_postgres
+    environment:
+      POSTGRES_USER: devflow_admin
+      POSTGRES_PASSWORD: super_secure_db_password
+      POSTGRES_DB: devflow_prod
+    ports:
+      - "5432:5432"
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: devflow_pgbouncer
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=devflow_admin
+      - DB_PASSWORD=super_secure_db_password
+      - DB_NAME=devflow_prod
+      - POOL_MODE=transaction
+    ports:
+      - "6432:6432"
+    depends_on:
+      - postgres
+
+  # Queue Layer (Redis A)
+  redis-queue:
+    image: redis:7-alpine
+    container_name: devflow_redis_queue
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+
+  # App Cache (Redis B)
+  redis-cache:
+    image: redis:7-alpine
+    container_name: devflow_redis_cache
+    ports:
+      - "6380:6379"
