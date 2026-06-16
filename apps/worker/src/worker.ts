@@ -1,65 +1,121 @@
+import 'dotenv/config';
 import { Worker } from 'bullmq';
 import { Octokit } from '@octokit/rest';
 import { GoogleGenAI } from '@google/genai';
+import { PrismaClient } from '@prisma/client';
 
-// Initialize external clients
+// ── External clients ──────────────────────────────────────────────────────────
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const ai      = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const prisma  = new PrismaClient();
 
-// ✅ FIX 1: Pass a plain ConnectionOptions object instead of a manually instantiated IORedis client
+// ── BullMQ Redis connection ───────────────────────────────────────────────────
+// Passing a plain object — BullMQ v5 manages its own IORedis instance internally.
 const connection = {
-  host: process.env.REDIS_QUEUE_HOST || 'localhost',
-  port: Number(process.env.REDIS_QUEUE_PORT) || 6379,
-  maxRetriesPerRequest: null,
+  host:                 process.env.REDIS_QUEUE_HOST || 'localhost',
+  port:                 Number(process.env.REDIS_QUEUE_PORT) || 6379,
+  maxRetriesPerRequest: null, // Required for long-lived BullMQ connections
 };
 
 console.log('[Worker] Background processing engine active... Listening for PRs.');
 
-// Listen for incoming jobs on the "pr-review-queue"
+// ── Job processor ─────────────────────────────────────────────────────────────
 const prWorker = new Worker('pr-review-queue', async (job) => {
-  const { pullRequestNumber, repositoryFullName } = job.data;
-  const [owner, repo] = repositoryFullName.split('/');
-  const number = pullRequestNumber;
+  const { pullRequestNumber, repositoryFullName, headSha } = job.data as any;
+  const [owner, repo] = (repositoryFullName as string).split('/');
+  const number = pullRequestNumber as number;
+
   console.log(`[Worker] Processing Job ID: ${job.id} for PR #${number}`);
 
   try {
-    // 1. Fetch the PR Diff from GitHub
+    // ── Step 1: Fetch the PR Diff from GitHub ─────────────────────────────
     console.log(`[Worker] Fetching diff for ${owner}/${repo}#${number}...`);
     const { data: diff } = await octokit.pulls.get({
       owner,
       repo,
       pull_number: number,
-      mediaType: { format: 'diff' }
+      mediaType: { format: 'diff' },
     });
 
-    // 2. Analyze code with Gemini
+    // ── Step 2: Analyze code with Gemini ─────────────────────────────────
     console.log(`[Worker] Analyzing code with Gemini 2.5 Flash...`);
-    const prompt = `You are a senior backend engineer doing a code review. Review the following git diff. Provide concise, actionable, and professional feedback. Highlight bugs, security flaws, or poor practices. If the code looks perfect, just say 'LGTM!'\n\n${diff}`;
+    const prompt =
+      `You are a senior backend engineer doing a code review. ` +
+      `Review the following git diff. Provide concise, actionable, and professional feedback. ` +
+      `Highlight bugs, security flaws, or poor practices. ` +
+      `If the code looks perfect, just say 'LGTM!'\n\n${diff}`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model:    'gemini-2.5-flash',
       contents: prompt,
     });
-    const reviewComment = response.text || 'Error: Could not generate AI response.';
+    const reviewComment = response.text ?? 'Error: Could not generate AI response.';
 
-    // 3. Post the Review Comment back to GitHub
+    // ── Step 3: Post the review comment back to GitHub ────────────────────
     console.log(`[Worker] Posting review to GitHub PR #${number}...`);
-    await octokit.issues.createComment({
-      owner,
-      repo,
-      issue_number: number,
-      body: `### 🤖 Gemini Code Review\n\n${reviewComment}`
+    let githubCommentId: string | null = null;
+    try {
+      const { data: comment } = await octokit.issues.createComment({
+        owner,
+        repo,
+        issue_number: number,
+        body:         `### 🤖 Gemini Code Review\n\n${reviewComment}`,
+      });
+      githubCommentId = comment.id.toString();
+    } catch (e) {
+      console.warn(`[Worker] Could not post to GitHub (maybe invalid credentials):`, e);
+    }
+
+    // ── Step 4: Save the review to PostgreSQL via Prisma ─────────────────
+    console.log(`[Worker] Saving review to database...`);
+    const pr = await prisma.pullRequest.upsert({
+      where: {
+        repoFullName_prNumber: {
+          repoFullName: repositoryFullName as string,
+          prNumber: number,
+        },
+      },
+      update: {
+        headSha: (headSha as string) || '',
+        status: 'reviewed',
+      },
+      create: {
+        repoFullName: repositoryFullName as string,
+        prNumber: number,
+        headSha: (headSha as string) || '',
+        status: 'reviewed',
+      },
     });
 
-    console.log(`[Worker] Successfully completed review for PR #${number}`);
+    await prisma.reviewJob.create({
+      data: {
+        pullRequestId: pr.id,
+        bullmqJobId: job.id ?? null,
+        status: 'completed',
+        completedAt: new Date(),
+        comments: {
+          create: {
+            filePath: 'global',
+            commentType: 'summary',
+            severity: 'info',
+            commentBody: reviewComment,
+            githubCommentId: githubCommentId,
+          }
+        }
+      }
+    });
+    console.log(`[Worker] Database save successful!`);
 
+    console.log(`[Worker] Successfully completed review for PR #${number}`);
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     console.error(`[Worker] Failed to process PR #${number}:`, errorMessage);
-    throw error;
+    throw error; // Re-throw so BullMQ marks the job as failed and retries
   }
 }, { connection });
+
+// ── Worker event listeners ────────────────────────────────────────────────────
 
 prWorker.on('failed', (job, err) => {
   console.error(`[Worker] Critical failure on Job ${job?.id}:`, err.message);
@@ -68,3 +124,16 @@ prWorker.on('failed', (job, err) => {
 prWorker.on('stalled', (jobId) => {
   console.warn(`[Worker] Job ${jobId} stalled!`);
 });
+
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+
+const shutdown = async (signal: string): Promise<void> => {
+  console.info(`\n[Worker] Received ${signal} — closing gracefully...`);
+  await prWorker.close();
+  await prisma.$disconnect();
+  console.info('[Worker] Shutdown complete.');
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT',  () => void shutdown('SIGINT'));

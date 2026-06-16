@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PullRequest {
+  id           String      @id @default(uuid())
+  repoFullName String
+  prNumber     Int
+  headSha      String
+  status       String
+  createdAt    DateTime    @default(now())
+
+  jobs         ReviewJob[]
+
+  @@unique([repoFullName, prNumber])
+}
+
+model ReviewJob {
+  id               String          @id @default(uuid())
+  pullRequest      PullRequest     @relation(fields: [pullRequestId], references: [id])
+  pullRequestId    String
+  bullmqJobId      String?
+  status           String
+  tokensUsed       Int?
+  processingTimeMs Int?
+  errorMessage     String?
+  createdAt        DateTime        @default(now())
+  completedAt      DateTime?
+
+  comments         ReviewComment[]
+}
+
+model ReviewComment {
+  id              String    @id @default(uuid())
+  reviewJob       ReviewJob @relation(fields: [reviewJobId], references: [id])
+  reviewJobId     String
+  filePath        String
+  lineNumber      Int?
+  commentType     String
+  severity        String
+  commentBody     String    @db.Text
+  githubCommentId String?
+  createdAt       DateTime  @default(now())
+}

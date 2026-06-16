@@ -4,11 +4,11 @@ services:
     image: postgres:15-alpine
     container_name: devflow_postgres
     environment:
-      POSTGRES_USER: devflow_admin
-      POSTGRES_PASSWORD: super_secure_db_password
-      POSTGRES_DB: devflow_prod
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: devflow
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
   pgbouncer:
     image: edoburu/pgbouncer:latest
@@ -16,9 +16,9 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=devflow_admin
-      - DB_PASSWORD=super_secure_db_password
-      - DB_NAME=devflow_prod
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=devflow
       - POOL_MODE=transaction
     ports:
       - "6432:6432"
