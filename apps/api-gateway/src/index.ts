@@ -31,6 +31,7 @@ import { config } from './config';
 import { getRedisClient, closeRedisClient } from './redis';
 import { getPrReviewQueue, closePrReviewQueue } from './queue';
 import webhookRoutes from './routes/webhooks';
+import apiRoutes from './routes/api';
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,7 @@ app.get('/health', (_req: Request, res: Response): void => {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 app.use('/webhooks', webhookRoutes);
+app.use('/api', apiRoutes);
 
 // ── 404 Handler ───────────────────────────────────────────────────────────────
 
