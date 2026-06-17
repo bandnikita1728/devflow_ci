@@ -16,7 +16,8 @@
  *   approach per BullMQ v5 docs to avoid "ERR_USE_AFTER_CLOSE" errors.
  */
 
-import { Queue, ConnectionOptions } from 'bullmq';
+import { Queue } from 'bullmq';
+import Redis from 'ioredis';
 import { config } from './config';
 
 // ── Job Data Contract ─────────────────────────────────────────────────────────
@@ -61,13 +62,13 @@ export interface PrReviewJobData {
  * BullMQ will create its own managed IORedis client from these options,
  * setting maxRetriesPerRequest: null internally as required.
  */
-const bullMqConnection: ConnectionOptions = {
-  host:     config.redisQueue.host,
-  port:     config.redisQueue.port,
-  password: config.redisQueue.password,
-  // enableReadyCheck: false is BullMQ's default and must stay false
-  // to avoid blocking on first connection before the server is ready.
-};
+const bullMqConnection: any = config.redisUrl 
+  ? new Redis(config.redisUrl, { maxRetriesPerRequest: null })
+  : {
+      host:     config.redisQueue.host,
+      port:     config.redisQueue.port,
+      password: config.redisQueue.password,
+    };
 
 // ── Singleton state ───────────────────────────────────────────────────────────
 

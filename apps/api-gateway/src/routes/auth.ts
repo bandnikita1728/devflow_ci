@@ -119,7 +119,8 @@ router.get('/github/callback', async (req: Request, res: Response): Promise<void
     });
 
     // 5. Redirect to frontend
-    res.redirect('http://localhost:5173');
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(frontendUrl);
   } catch (err) {
     console.error('OAuth Callback Error:', err);
     res.status(500).json({ error: 'OAuth flow failed' });

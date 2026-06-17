@@ -85,6 +85,9 @@ export const config = {
 
   /** PostgreSQL connection string (available for future Phase 2 usage). */
   databaseUrl: requireEnv('DATABASE_URL'),
+
+  /** Single Redis URL from Render (if provided) */
+  redisUrl: process.env['REDIS_URL']?.trim() || undefined,
 } as const;
 
 // Log validated config (redact secrets) on startup

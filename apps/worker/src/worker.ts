@@ -3,6 +3,7 @@ import { Worker } from 'bullmq';
 import { Octokit } from '@octokit/rest';
 import { GoogleGenAI } from '@google/genai';
 import { PrismaClient } from '@prisma/client';
+import Redis from 'ioredis';
 
 // ── External clients ──────────────────────────────────────────────────────────
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
@@ -11,11 +12,13 @@ const prisma  = new PrismaClient();
 
 // ── BullMQ Redis connection ───────────────────────────────────────────────────
 // Passing a plain object — BullMQ v5 manages its own IORedis instance internally.
-const connection = {
-  host:                 process.env.REDIS_QUEUE_HOST || 'localhost',
-  port:                 Number(process.env.REDIS_QUEUE_PORT) || 6379,
-  maxRetriesPerRequest: null, // Required for long-lived BullMQ connections
-};
+const connection: any = process.env.REDIS_URL
+  ? new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null })
+  : {
+      host:                 process.env.REDIS_QUEUE_HOST || 'localhost',
+      port:                 Number(process.env.REDIS_QUEUE_PORT) || 6379,
+      maxRetriesPerRequest: null,
+    };
 
 console.log('[Worker] Background processing engine active... Listening for PRs.');
 

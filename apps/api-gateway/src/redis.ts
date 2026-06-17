@@ -26,28 +26,30 @@ let redisClient: Redis | null = null;
 export function getRedisClient(): Redis {
   if (redisClient) return redisClient;
 
-  redisClient = new Redis({
-    host:     config.redisCache.host,
-    port:     config.redisCache.port,
-    password: config.redisCache.password,
+  const retryStrategy = (times: number): number | null => {
+    const delay = Math.min(times * 500, 30_000);
+    console.warn(`[Redis:Cache] Retrying connection (attempt ${times}) in ${delay}ms...`);
+    return delay;
+  };
 
-    // Allow unlimited retry attempts for transient network blips.
-    // Setting this to null (not 0) is the IORedis convention for "retry forever".
-    maxRetriesPerRequest: null,
-
-    // Verify the server is ready before resolving the first command.
-    enableReadyCheck: true,
-
-    // Connect immediately on construction — surface errors at boot time.
-    lazyConnect: false,
-
-    // Reconnection strategy: exponential backoff capped at 30 seconds.
-    retryStrategy(times: number): number | null {
-      const delay = Math.min(times * 500, 30_000);
-      console.warn(`[Redis:Cache] Retrying connection (attempt ${times}) in ${delay}ms...`);
-      return delay;
-    },
-  });
+  if (config.redisUrl) {
+    redisClient = new Redis(config.redisUrl, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: true,
+      lazyConnect: false,
+      retryStrategy,
+    });
+  } else {
+    redisClient = new Redis({
+      host:     config.redisCache.host,
+      port:     config.redisCache.port,
+      password: config.redisCache.password,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: true,
+      lazyConnect: false,
+      retryStrategy,
+    });
+  }
 
   // ── Lifecycle events ───────────────────────────────────────────────────────
 
