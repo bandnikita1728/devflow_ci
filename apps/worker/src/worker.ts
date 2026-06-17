@@ -40,31 +40,104 @@ const prWorker = new Worker('pr-review-queue', async (job) => {
       mediaType: { format: 'diff' },
     });
 
+    // Split diff by file, skip files > 50KB or binary/generated files
+    const skipPatterns = [
+      'package-lock.json', 'yarn.lock', 'node_modules',
+      '.min.js', '.min.css', 'dist/', 'build/'
+    ];
+    const filteredDiff = (diff as any)
+      .split('diff --git')
+      .filter((chunk: string) => {
+        if (!chunk.trim()) return false;
+        if (skipPatterns.some(p => chunk.includes(p))) return false;
+        if (chunk.length > 50000) return false; // 50KB per file
+        return true;
+      })
+      .join('diff --git');
+
     // ── Step 2: Analyze code with Gemini ─────────────────────────────────
     console.log(`[Worker] Analyzing code with Gemini 2.5 Flash...`);
-    const prompt =
-      `You are a senior backend engineer doing a code review. ` +
-      `Review the following git diff. Provide concise, actionable, and professional feedback. ` +
-      `Highlight bugs, security flaws, or poor practices. ` +
-      `If the code looks perfect, just say 'LGTM!'\n\n${diff}`;
+    const prompt = `You are a senior software engineer doing a thorough code review.
+
+Analyze the following git diff and return a JSON array of review comments.
+
+Rules:
+- Only comment on real issues — bugs, security flaws, performance problems, bad practices
+- Be specific and actionable
+- If the code is good, return an empty array []
+- Maximum 10 comments per review
+
+Return ONLY a valid JSON array with this exact structure, no markdown, no explanation:
+[
+  {
+    "file": "relative/path/to/file.ts",
+    "line": 42,
+    "severity": "critical" | "warning" | "suggestion",
+    "category": "security" | "performance" | "bug" | "style" | "architecture",
+    "comment": "Clear explanation of the issue and how to fix it"
+  }
+]
+
+Git diff to review:
+${filteredDiff}`;
 
     const response = await ai.models.generateContent({
       model:    'gemini-2.5-flash',
       contents: prompt,
     });
-    const reviewComment = response.text ?? 'Error: Could not generate AI response.';
+
+    // Parse Gemini response as JSON
+    let reviewComments: any[] = [];
+    try {
+      const rawText = response.text || '[]';
+      // Strip markdown code fences if present
+      const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      reviewComments = JSON.parse(cleaned);
+      if (!Array.isArray(reviewComments)) reviewComments = [];
+    } catch (e) {
+      console.warn('[Worker] Failed to parse structured response, falling back to single comment');
+      reviewComments = [{
+        file: 'general',
+        line: null,
+        severity: 'suggestion',
+        category: 'style',
+        comment: response.text || 'Review completed'
+      }];
+    }
 
     // ── Step 3: Post the review comment back to GitHub ────────────────────
     console.log(`[Worker] Posting review to GitHub PR #${number}...`);
-    let githubCommentId: string | null = null;
     try {
-      const { data: comment } = await octokit.issues.createComment({
+      // Post individual inline comments
+      const inlineComments = reviewComments
+        .filter(c => c.file !== 'general' && c.line)
+        .map(c => ({
+          path: c.file,
+          line: c.line,
+          body: `**[${c.severity.toUpperCase()}] ${c.category}**\n\n${c.comment}`
+        }));
+
+      // Submit as a proper GitHub PR review
+      await octokit.pulls.createReview({
         owner,
         repo,
-        issue_number: number,
-        body:         `### 🤖 Gemini Code Review\n\n${reviewComment}`,
+        pull_number: number,
+        commit_id: headSha,
+        event: 'COMMENT',
+        body: `### 🤖 DevFlow CI Review\n\nFound ${reviewComments.length} issue(s). See inline comments below.`,
+        comments: inlineComments.length > 0 ? inlineComments : undefined
       });
-      githubCommentId = comment.id.toString();
+
+      // If any general comments, post them separately
+      const generalComments = reviewComments.filter(c => c.file === 'general' || !c.line);
+      for (const gc of generalComments) {
+        await octokit.issues.createComment({
+          owner,
+          repo,
+          issue_number: number,
+          body: `**[${gc.severity.toUpperCase()}]** ${gc.comment}`
+        });
+      }
     } catch (e) {
       console.warn(`[Worker] Could not post to GitHub (maybe invalid credentials):`, e);
     }
@@ -90,22 +163,24 @@ const prWorker = new Worker('pr-review-queue', async (job) => {
       },
     });
 
-    await prisma.reviewJob.create({
+    const reviewJob = await prisma.reviewJob.create({
       data: {
         pullRequestId: pr.id,
         bullmqJobId: job.id ?? null,
         status: 'completed',
         completedAt: new Date(),
-        comments: {
-          create: {
-            filePath: 'global',
-            commentType: 'summary',
-            severity: 'info',
-            commentBody: reviewComment,
-            githubCommentId: githubCommentId,
-          }
-        }
       }
+    });
+
+    await prisma.reviewComment.createMany({
+      data: reviewComments.map(c => ({
+        reviewJobId: reviewJob.id,
+        filePath: c.file,
+        lineNumber: c.line || null,
+        commentType: c.category,
+        severity: c.severity,
+        commentBody: c.comment,
+      }))
     });
     console.log(`[Worker] Database save successful!`);
 

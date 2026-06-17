@@ -35,6 +35,7 @@ import apiRoutes from './routes/api';
 import authRoutes from './routes/auth';
 import { requireAuth } from './middleware/requireAuth';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,11 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
 });
 
 app.use(cookieParser());
+
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://172.31.245.4:5173'],
+  credentials: true,
+}));
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 
@@ -109,7 +115,7 @@ async function start(): Promise<void> {
   getRedisClient();
   getPrReviewQueue();
 
-  const server = app.listen(config.port, () => {
+  const server = app.listen(config.port, '0.0.0.0', () => {
     console.info('');
     console.info('═'.repeat(60));
     console.info('  DevFlow CI — API Gateway');
