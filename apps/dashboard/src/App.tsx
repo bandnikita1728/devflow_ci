@@ -3,16 +3,25 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { ReviewsPage } from '@/pages/ReviewsPage'
 import { ReviewDetailPage } from '@/pages/ReviewDetailPage'
+import { LoginPage } from '@/pages/LoginPage'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 function App() {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/reviews" element={<ReviewsPage />} />
-        <Route path="/reviews/:id" element={<ReviewDetailPage />} />
-      </Route>
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/reviews" element={<ReviewsPage />} />
+            <Route path="/reviews/:id" element={<ReviewDetailPage />} />
+          </Route>
+        </Route>
+      </Routes>
+    </AuthProvider>
   )
 }
 

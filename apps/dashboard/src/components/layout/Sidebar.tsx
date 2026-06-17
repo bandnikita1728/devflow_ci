@@ -9,19 +9,8 @@ const navItems = [
 
 export function Sidebar() {
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-slate-200 bg-slate-50/80">
-      {/* Logo */}
-      <div className="flex h-14 items-center gap-2 border-b border-slate-200 px-5">
-        <span className="text-[15px] font-semibold text-slate-900 tracking-tight">
-          DevFlow
-        </span>
-        <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 tracking-wide uppercase">
-          CI
-        </span>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-3 space-y-0.5">
+    <aside className="fixed inset-y-14 left-0 z-40 flex w-64 flex-col border-r border-gh-border bg-gh-sidebar">
+      <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
@@ -29,15 +18,19 @@ export function Sidebar() {
             end={item.to === "/"}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors",
+                "flex items-center gap-3 rounded-md px-3 py-2 text-[14px] font-medium transition-colors border-l-[3px]",
                 isActive
-                  ? "bg-slate-100 text-slate-900"
-                  : "text-slate-500 hover:bg-slate-100/60 hover:text-slate-700"
+                  ? "bg-gh-card text-gh-text-primary border-gh-link shadow-sm"
+                  : "text-gh-text-primary border-transparent hover:bg-gh-border/30 hover:border-gh-border/50"
               )
             }
           >
-            <item.icon className="h-4 w-4" />
-            {item.label}
+            {({ isActive }) => (
+              <>
+                <item.icon className={cn("h-4 w-4", isActive ? "text-gh-text-primary" : "text-gh-text-secondary")} />
+                {item.label}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>

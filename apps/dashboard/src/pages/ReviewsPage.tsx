@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { GitPullRequest, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { GitPullRequest, XCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fetchReviews, type ReviewJob, type PaginatedResponse } from "@/lib/api";
@@ -31,131 +31,97 @@ export function ReviewsPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
-        <XCircle className="h-10 w-10 text-slate-300 mb-3" />
-        <p className="text-sm font-medium text-slate-900 mb-1">Something went wrong</p>
-        <p className="text-xs text-slate-500">{error}</p>
+        <XCircle className="h-10 w-10 text-gh-error mb-3" />
+        <p className="text-sm font-semibold text-gh-text-primary mb-1">Something went wrong</p>
+        <p className="text-sm text-gh-text-secondary">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
-            Reviews
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            All code review jobs across your repositories
-          </p>
-        </div>
+    <div className="space-y-4">
+      <div className="pb-4 border-b border-gh-border flex items-center justify-between">
+        <h1 className="text-2xl font-normal text-gh-text-primary">
+          Reviews
+        </h1>
         {data && (
-          <span className="text-xs text-slate-400">
-            {data.meta.total} total
+          <span className="text-sm text-gh-text-secondary border border-gh-border rounded-[2em] px-3 py-1">
+            {data.meta.total} jobs
           </span>
         )}
       </div>
 
-      {/* Reviews List */}
-      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-        {/* Header Row */}
-        <div className="grid grid-cols-[1fr_140px_100px_100px] gap-4 border-b border-slate-200 bg-slate-50/60 px-5 py-2.5">
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Repository</span>
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Status</span>
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Created</span>
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider text-right">Action</span>
+      <div className="rounded-md border border-gh-border bg-gh-card">
+        <div className="bg-gh-sidebar px-4 py-3 border-b border-gh-border rounded-t-md">
+          <span className="text-sm font-semibold text-gh-text-primary">
+            {data ? `${data.meta.total} review jobs` : 'Loading...'}
+          </span>
         </div>
 
         {loading ? (
           <div>
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="grid grid-cols-[1fr_140px_100px_100px] gap-4 items-center px-5 py-3.5 border-b border-slate-100 last:border-0">
-                <div className="flex items-center gap-2">
-                  <Skeleton className="h-3.5 w-36" />
-                  <Skeleton className="h-3 w-8" />
+              <div key={i} className="flex items-center justify-between px-4 py-3 border-b border-gh-border last:border-0">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-4 w-48" />
                 </div>
-                <Skeleton className="h-5 w-20 rounded-full" />
                 <Skeleton className="h-3.5 w-14" />
-                <Skeleton className="ml-auto h-3.5 w-8" />
               </div>
             ))}
           </div>
         ) : !data || data.data.length === 0 ? (
           <div className="py-20 text-center">
-            <GitPullRequest className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-            <p className="text-sm font-medium text-slate-900">No reviews found</p>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <GitPullRequest className="mx-auto h-8 w-8 text-gh-text-secondary mb-3" />
+            <p className="text-[16px] font-semibold text-gh-text-primary">No reviews found</p>
+            <p className="mt-1 text-sm text-gh-text-secondary">
               Reviews will appear here as pull requests are processed
             </p>
           </div>
         ) : (
           <div>
-            {data.data.map((review) => {
-              const statusColor =
-                review.status === "completed" ? "border-l-green-500" :
-                review.status === "failed" ? "border-l-red-500" :
-                review.status === "processing" ? "border-l-blue-500" :
-                "border-l-amber-500";
-
-              return (
-                <div
-                  key={review.id}
-                  className={`grid grid-cols-[1fr_140px_100px_100px] gap-4 items-center border-b border-slate-100 border-l-2 ${statusColor} px-5 py-3.5 last:border-b-0 hover:bg-slate-50/60 transition-colors`}
-                >
-                  <div className="min-w-0">
-                    <span className="text-sm font-medium text-slate-900">
-                      {review.pullRequest.repoFullName}
-                    </span>
-                    <span className="ml-2 text-sm text-slate-400">
-                      #{review.pullRequest.prNumber}
-                    </span>
-                  </div>
-                  <div>
-                    <StatusBadge status={review.status} />
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    {timeAgo(review.createdAt)}
+            {data.data.map((review) => (
+              <div
+                key={review.id}
+                className="flex items-center justify-between border-b border-gh-border px-4 py-3 last:border-b-0 hover:bg-gh-sidebar transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <StatusBadge status={review.status} />
+                  <Link
+                    to={`/reviews/${review.id}`}
+                    className="text-[16px] font-semibold text-gh-text-primary hover:text-gh-link"
+                  >
+                    {review.pullRequest.repoFullName}
+                  </Link>
+                  <span className="text-sm text-gh-link">
+                    #{review.pullRequest.prNumber}
                   </span>
-                  <div className="text-right">
-                    <Link
-                      to={`/reviews/${review.id}`}
-                      className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
-                    >
-                      View →
-                    </Link>
-                  </div>
                 </div>
-              );
-            })}
+                <span className="text-sm text-gh-text-secondary">
+                  {timeAgo(review.createdAt)}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Pagination */}
       {data && data.meta.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-slate-500">
-            Page {data.meta.page} of {data.meta.totalPages}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-            >
-              <ChevronLeft className="h-3 w-3" />
-              Previous
-            </button>
-            <button
-              disabled={page >= data.meta.totalPages}
-              onClick={() => setPage((p) => p + 1)}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-            >
-              Next
-              <ChevronRight className="h-3 w-3" />
-            </button>
-          </div>
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <button
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="rounded-md border border-gh-border bg-gh-card px-4 py-2 text-sm font-medium text-gh-link hover:bg-gh-sidebar disabled:text-gh-border transition-colors"
+          >
+            Previous
+          </button>
+          <button
+            disabled={page >= data.meta.totalPages}
+            onClick={() => setPage((p) => p + 1)}
+            className="rounded-md border border-gh-border bg-gh-card px-4 py-2 text-sm font-medium text-gh-link hover:bg-gh-sidebar disabled:text-gh-border transition-colors"
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  ArrowRight,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -40,9 +39,9 @@ export function DashboardPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
-        <XCircle className="h-10 w-10 text-slate-300 mb-3" />
-        <p className="text-sm font-medium text-slate-900 mb-1">Something went wrong</p>
-        <p className="text-xs text-slate-500">{error}</p>
+        <XCircle className="h-10 w-10 text-gh-error mb-3" />
+        <p className="text-sm font-semibold text-gh-text-primary mb-1">Something went wrong</p>
+        <p className="text-sm text-gh-text-secondary">{error}</p>
       </div>
     );
   }
@@ -52,69 +51,56 @@ export function DashboardPage() {
       title: "Total PRs",
       value: stats?.totalPRs ?? 0,
       icon: GitPullRequest,
-      iconColor: "text-indigo-500",
-      iconBg: "bg-indigo-50",
     },
     {
       title: "Completed",
       value: stats?.completedReviews ?? 0,
       icon: CheckCircle2,
-      iconColor: "text-green-600",
-      iconBg: "bg-green-50",
     },
     {
       title: "Failed",
       value: stats?.failedReviews ?? 0,
       icon: XCircle,
-      iconColor: "text-red-500",
-      iconBg: "bg-red-50",
     },
     {
       title: "Avg Time",
       value: stats ? formatMs(stats.avgProcessingTimeMs) : "—",
       icon: Clock,
-      iconColor: "text-amber-500",
-      iconBg: "bg-amber-50",
     },
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
+      <div className="pb-4 border-b border-gh-border">
+        <h1 className="text-2xl font-normal text-gh-text-primary">
           Dashboard
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Overview of your code review pipeline
-        </p>
       </div>
 
       {/* Stat Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) =>
           loading ? (
-            <div key={card.title} className="rounded-lg border border-slate-200 bg-white p-6">
-              <div className="flex items-center justify-between mb-3">
+            <div key={card.title} className="rounded-md border border-gh-border bg-gh-card p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Skeleton className="h-4 w-4" />
                 <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-8 w-8 rounded-md" />
               </div>
-              <Skeleton className="h-7 w-12" />
+              <Skeleton className="h-6 w-12" />
             </div>
           ) : (
             <div
               key={card.title}
-              className="rounded-lg border border-slate-200 bg-white p-6"
+              className="rounded-md border border-gh-border bg-gh-card p-4"
             >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              <div className="flex items-center gap-2 mb-2">
+                <card.icon className="h-4 w-4 text-gh-text-secondary" />
+                <p className="text-sm font-semibold text-gh-text-secondary">
                   {card.title}
                 </p>
-                <div className={`rounded-md p-1.5 ${card.iconBg}`}>
-                  <card.icon className={`h-4 w-4 ${card.iconColor}`} />
-                </div>
               </div>
-              <p className="text-2xl font-bold text-slate-900">
+              <p className="text-2xl font-semibold text-gh-text-primary">
                 {card.value}
               </p>
             </div>
@@ -123,24 +109,23 @@ export function DashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-slate-900">
+      <div className="pt-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[16px] font-semibold text-gh-text-primary">
             Recent activity
           </h2>
           <Link
             to="/reviews"
-            className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+            className="text-sm font-semibold text-gh-link hover:underline"
           >
             View all
-            <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
 
         {loading ? (
-          <div className="rounded-lg border border-slate-200 bg-white">
+          <div className="rounded-md border border-gh-border bg-gh-card">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-5 py-3.5 border-b border-slate-100 last:border-0">
+              <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-gh-border last:border-0">
                 <Skeleton className="h-3.5 w-32" />
                 <Skeleton className="h-5 w-16 rounded-full" />
                 <Skeleton className="ml-auto h-3.5 w-14" />
@@ -148,41 +133,40 @@ export function DashboardPage() {
             ))}
           </div>
         ) : recentReviews.length === 0 ? (
-          <div className="rounded-lg border border-slate-200 bg-white py-16 text-center">
-            <GitPullRequest className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-            <p className="text-sm font-medium text-slate-900">No reviews yet</p>
-            <p className="mt-0.5 text-xs text-slate-500">
+          <div className="rounded-md border border-gh-border bg-gh-card py-16 text-center">
+            <GitPullRequest className="mx-auto h-8 w-8 text-gh-text-secondary mb-3" />
+            <p className="text-[16px] font-semibold text-gh-text-primary">No reviews yet</p>
+            <p className="mt-1 text-sm text-gh-text-secondary">
               Reviews will appear here once PRs are processed
             </p>
           </div>
         ) : (
-          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-md border border-gh-border bg-gh-card">
+            <div className="bg-gh-sidebar px-4 py-3 border-b border-gh-border rounded-t-md">
+              <span className="text-sm font-semibold text-gh-text-primary">Latest reviews</span>
+            </div>
             {recentReviews.map((review) => {
-              const statusColor =
-                review.status === "completed" ? "border-l-green-500" :
-                review.status === "failed" ? "border-l-red-500" :
-                review.status === "processing" ? "border-l-blue-500" :
-                "border-l-amber-500";
-
               return (
-                <Link
+                <div
                   key={review.id}
-                  to={`/reviews/${review.id}`}
-                  className={`flex items-center gap-4 border-b border-slate-100 border-l-2 ${statusColor} px-5 py-3.5 last:border-b-0 hover:bg-slate-50/60 transition-colors`}
+                  className="flex items-center justify-between border-b border-gh-border px-4 py-3 last:border-b-0 hover:bg-gh-sidebar transition-colors"
                 >
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-slate-900">
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={review.status} />
+                    <Link
+                      to={`/reviews/${review.id}`}
+                      className="text-[16px] font-semibold text-gh-text-primary hover:text-gh-link"
+                    >
                       {review.pullRequest.repoFullName}
-                    </span>
-                    <span className="ml-2 text-sm text-slate-400">
+                    </Link>
+                    <span className="text-sm text-gh-link">
                       #{review.pullRequest.prNumber}
                     </span>
                   </div>
-                  <StatusBadge status={review.status} />
-                  <span className="text-xs text-slate-400 w-16 text-right shrink-0">
+                  <span className="text-sm text-gh-text-secondary">
                     {timeAgo(review.createdAt)}
                   </span>
-                </Link>
+                </div>
               );
             })}
           </div>

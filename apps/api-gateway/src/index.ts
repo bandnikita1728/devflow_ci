@@ -32,6 +32,9 @@ import { getRedisClient, closeRedisClient } from './redis';
 import { getPrReviewQueue, closePrReviewQueue } from './queue';
 import webhookRoutes from './routes/webhooks';
 import apiRoutes from './routes/api';
+import authRoutes from './routes/auth';
+import { requireAuth } from './middleware/requireAuth';
+import cookieParser from 'cookie-parser';
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -55,6 +58,8 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
   express.json({ limit: '1mb' })(req, res, next);
 });
 
+app.use(cookieParser());
+
 // ── Health Check ──────────────────────────────────────────────────────────────
 
 /**
@@ -75,7 +80,9 @@ app.get('/health', (_req: Request, res: Response): void => {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 app.use('/webhooks', webhookRoutes);
-app.use('/api', apiRoutes);
+app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api', requireAuth, apiRoutes);
 
 // ── 404 Handler ───────────────────────────────────────────────────────────────
 
