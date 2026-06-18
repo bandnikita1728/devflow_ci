@@ -10,6 +10,9 @@ import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 
 // ── External clients ──────────────────────────────────────────────────────────
+console.log('[Worker] GITHUB_APP_PRIVATE_KEY set:', !!process.env.GITHUB_APP_PRIVATE_KEY);
+console.log('[Worker] Key length:', process.env.GITHUB_APP_PRIVATE_KEY?.length || 0);
+
 // Read private key from env var (Render) or file (local)
 const privateKey = process.env.GITHUB_APP_PRIVATE_KEY ||
   readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH || './devflow-ci.2026-06-17.private-key.pem', 'utf8');
