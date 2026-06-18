@@ -1,12 +1,20 @@
 import 'dotenv/config';
 import { Worker } from 'bullmq';
+import { App } from '@octokit/app';
 import { Octokit } from '@octokit/rest';
+import { readFileSync } from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 
 // ── External clients ──────────────────────────────────────────────────────────
-const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+const privateKey = readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH || './devflow-ci.2026-06-17.private-key.pem', 'utf8');
+
+const app = new App({
+  appId: process.env.GITHUB_APP_ID || '',
+  privateKey,
+  Octokit: Octokit as any,
+});
 const ai      = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const prisma  = new PrismaClient();
 
@@ -33,6 +41,16 @@ const prWorker = new Worker('pr-review-queue', async (job) => {
   try {
     // ── Step 1: Fetch the PR Diff from GitHub ─────────────────────────────
     console.log(`[Worker] Fetching diff for ${owner}/${repo}#${number}...`);
+    
+    // Get installation ID for this repo
+    const { data: installation } = await app.octokit.request(
+      'GET /repos/{owner}/{repo}/installation',
+      { owner, repo }
+    );
+
+    // Get authenticated Octokit for this installation
+    const octokit = (await app.getInstallationOctokit(installation.id)) as unknown as Octokit;
+
     const { data: diff } = await octokit.pulls.get({
       owner,
       repo,
