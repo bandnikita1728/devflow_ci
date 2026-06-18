@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'http';
 import { Worker } from 'bullmq';
 import { App } from '@octokit/app';
 import { Octokit } from '@octokit/rest';
@@ -230,3 +231,14 @@ const shutdown = async (signal: string): Promise<void> => {
 
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT',  () => void shutdown('SIGINT'));
+
+// ── Render Free Tier Health Check ─────────────────────────────────────────────
+// Keep-alive HTTP server for Render free tier
+const server = http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end('DevFlow CI Worker — running');
+});
+
+server.listen(process.env.PORT || 3002, () => {
+  console.log('[Worker] Health server listening');
+});
