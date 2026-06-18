@@ -234,7 +234,7 @@ process.on('SIGINT',  () => void shutdown('SIGINT'));
 
 // ── Render Free Tier Health Check ─────────────────────────────────────────────
 // Keep-alive HTTP server for Render free tier
-const server = http.createServer((req, res) => {
+const server = http.createServer((_req, res) => {
   res.writeHead(200);
   res.end('DevFlow CI Worker — running');
 });
