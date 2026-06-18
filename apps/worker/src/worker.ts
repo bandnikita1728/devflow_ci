@@ -247,12 +247,16 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT',  () => void shutdown('SIGINT'));
 
 // ── Render Free Tier Health Check ─────────────────────────────────────────────
-// Keep-alive HTTP server for Render free tier
+// Dummy HTTP server to satisfy Render's Web Service port binding requirement
+// Render requires you to listen on '0.0.0.0' (all network interfaces), not just localhost.
+// It also injects a specific PORT variable that you MUST use.
+const port = process.env.PORT ? Number(process.env.PORT) : 10000; 
+
 const server = http.createServer((_req, res) => {
   res.writeHead(200);
-  res.end('DevFlow CI Worker — running');
+  res.end('Worker is alive and processing queue jobs!');
 });
 
-server.listen(process.env.PORT || 3002, () => {
-  console.log('[Worker] Health server listening');
+server.listen(port, '0.0.0.0', () => {
+  console.log(`[Worker] Dummy web server listening on port ${port}`);
 });
