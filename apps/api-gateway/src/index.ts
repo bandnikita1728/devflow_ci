@@ -42,6 +42,7 @@ import rateLimit from 'express-rate-limit';
 // ── App ───────────────────────────────────────────────────────────────────────
 
 const app: Application = express();
+app.set('trust proxy', 1);
 
 // ── Global Middleware ─────────────────────────────────────────────────────────
 
@@ -63,8 +64,13 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
 
 app.use(cookieParser());
 
+const allowedOrigins = ['http://localhost:5173', 'http://172.31.245.4:5173'];
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://172.31.245.4:5173'],
+  origin: allowedOrigins,
   credentials: true,
 }));
 
