@@ -9,7 +9,13 @@ import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 
 // ── External clients ──────────────────────────────────────────────────────────
-const privateKey = readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH || './devflow-ci.2026-06-17.private-key.pem', 'utf8');
+let privateKey = '';
+if (process.env.GITHUB_APP_PRIVATE_KEY) {
+  // Render sometimes escapes newlines, this ensures the key stays formatted correctly
+  privateKey = process.env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n');
+} else {
+  privateKey = readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH || './devflow-ci.2026-06-17.private-key.pem', 'utf8');
+}
 
 const app = new App({
   appId: process.env.GITHUB_APP_ID || '',
