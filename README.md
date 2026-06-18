@@ -15,8 +15,8 @@
 
 > 🚧 Live demo coming soon — deploy in progress.
 
-![DevFlow CI Demo](docs/demo.gif)
-*AI bot catching a SQL injection vulnerability inline on a GitHub PR*
+![DevFlow CI Demo](docs/demo.png)
+*DevFlow CI bot catching a SQL injection vulnerability inline on a GitHub PR*
 
 ## 📑 Table of Contents
 
