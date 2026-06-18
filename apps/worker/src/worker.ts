@@ -11,9 +11,8 @@ import Redis from 'ioredis';
 
 // ── External clients ──────────────────────────────────────────────────────────
 // Read private key from env var (Render) or file (local)
-const privateKey = process.env.GITHUB_APP_PRIVATE_KEY 
-  ? process.env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n')
-  : readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH || './devflow-ci.2026-06-17.private-key.pem', 'utf8');
+const privateKey = process.env.GITHUB_APP_PRIVATE_KEY ||
+  readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH || './devflow-ci.2026-06-17.private-key.pem', 'utf8');
 
 const app = new App({
   appId: process.env.GITHUB_APP_ID || '',
