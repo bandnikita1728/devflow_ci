@@ -19,7 +19,7 @@ export function LoginPage() {
 
         <div className="rounded-md border border-gh-border bg-gh-card p-4 shadow-sm text-center">
           <a
-            href="/auth/github"
+            href="https://devflow-api-gateway.onrender.com/auth/github"
             className="inline-block w-full rounded-md bg-[#1F883D] px-4 py-[5px] text-sm border border-[rgba(31,35,40,0.15)] transition-colors hover:bg-[#1a7431]"
             style={{ color: '#ffffff', fontWeight: 600 }}
           >
