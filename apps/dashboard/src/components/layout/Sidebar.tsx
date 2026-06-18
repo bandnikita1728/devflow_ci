@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, GitPullRequest, Settings, Shield } from "lucide-react";
+import { LayoutDashboard, GitPullRequest, Settings, Shield, Book } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/repos", icon: Book, label: "Repositories" },
   { to: "/reviews", icon: GitPullRequest, label: "Reviews" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];

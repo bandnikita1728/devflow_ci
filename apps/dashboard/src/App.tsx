@@ -6,6 +6,7 @@ import { ReviewDetailPage } from '@/pages/ReviewDetailPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { ReposPage } from '@/pages/ReposPage'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AuthProvider } from '@/contexts/AuthContext'
 
@@ -18,6 +19,7 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/repos" element={<ReposPage />} />
             <Route path="/reviews" element={<ReviewsPage />} />
             <Route path="/reviews/:id" element={<ReviewDetailPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />

@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { Octokit } from '@octokit/rest';
+import { decryptToken } from './auth';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -98,6 +100,144 @@ router.get('/reviews/:id', async (req: Request, res: Response): Promise<void> =>
   } catch (error) {
     console.error('Error fetching review detail:', error);
     res.status(500).json({ error: 'Failed to fetch review detail' });
+  }
+});
+
+// GET /api/repos — list user's connected repos
+router.get('/repos', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const repos = await prisma.repository.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(repos);
+  } catch (error) {
+    console.error('Error fetching repos:', error);
+    res.status(500).json({ error: 'Failed to fetch repositories' });
+  }
+});
+
+// POST /api/repos — connect a repo
+router.post('/repos', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { repoFullName } = req.body;
+    
+    if (!repoFullName || !repoFullName.includes('/')) {
+      res.status(400).json({ error: 'Invalid repository name format' });
+      return;
+    }
+
+    const [owner, repo] = repoFullName.split('/');
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.encryptedToken) {
+      res.status(401).json({ error: 'User token missing' });
+      return;
+    }
+
+    const token = decryptToken(user.encryptedToken);
+    const octokit = new Octokit({ auth: token });
+
+    // Check if repository already exists in DB
+    const existingRepo = await prisma.repository.findUnique({
+      where: { fullName: repoFullName }
+    });
+    
+    if (existingRepo) {
+      res.status(400).json({ error: 'Repository already connected' });
+      return;
+    }
+
+    // Verify repo access and get repo ID
+    const ghRepo = await octokit.repos.get({ owner, repo });
+    
+    // Create webhook
+    const webhookUrl = process.env.WEBHOOK_URL || 'https://your-ngrok-url/webhooks/github';
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET || process.env.GITHUB_SECRET;
+
+    const hook = await octokit.repos.createWebhook({
+      owner,
+      repo,
+      name: 'web',
+      active: true,
+      events: ['pull_request'],
+      config: {
+        url: webhookUrl,
+        content_type: 'json',
+        secret: webhookSecret,
+      }
+    });
+
+    const newRepo = await prisma.repository.create({
+      data: {
+        userId,
+        githubRepoId: ghRepo.data.id.toString(),
+        fullName: repoFullName,
+        webhookId: hook.data.id.toString(),
+        isActive: true,
+      }
+    });
+
+    res.json(newRepo);
+  } catch (error: any) {
+    console.error('Error connecting repo:', error);
+    if (error.status === 404) {
+      res.status(404).json({ error: 'Repository not found or insufficient permissions' });
+    } else {
+      res.status(500).json({ error: 'Failed to connect repository' });
+    }
+  }
+});
+
+// DELETE /api/repos/:id — disconnect repo
+router.delete('/repos/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const repoId = req.params.id as string;
+
+    const repository = await prisma.repository.findFirst({
+      where: { id: repoId, userId }
+    });
+
+    if (!repository) {
+      res.status(404).json({ error: 'Repository not found' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.encryptedToken) {
+      res.status(401).json({ error: 'User token missing' });
+      return;
+    }
+
+    const token = decryptToken(user.encryptedToken);
+    const octokit = new Octokit({ auth: token });
+    const [owner, repo] = repository.fullName.split('/');
+
+    if (repository.webhookId) {
+      try {
+        await octokit.repos.deleteWebhook({
+          owner,
+          repo,
+          hook_id: parseInt(repository.webhookId, 10)
+        });
+      } catch (err: any) {
+        if (err.status !== 404) { // Ignore if webhook was already deleted manually
+          throw err;
+        }
+      }
+    }
+
+    await prisma.repository.delete({
+      where: { id: repoId }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error disconnecting repo:', error);
+    res.status(500).json({ error: 'Failed to disconnect repository' });
   }
 });
 

@@ -29,6 +29,7 @@ model Repository {
   userId       String
   githubRepoId String   @unique
   fullName     String   @unique
+  webhookId    String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 }
