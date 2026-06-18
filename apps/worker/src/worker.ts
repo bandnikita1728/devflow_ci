@@ -3,18 +3,26 @@ import http from 'http';
 import { Worker } from 'bullmq';
 import { App } from '@octokit/app';
 import { Octokit } from '@octokit/rest';
-import { readFileSync } from 'fs';
+
 import { GoogleGenAI } from '@google/genai';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 
 // ── External clients ──────────────────────────────────────────────────────────
 let privateKey = '';
+
+// 1. Cloud Mode (Render): Use the raw text from the environment variable directly
 if (process.env.GITHUB_APP_PRIVATE_KEY) {
-  // Render sometimes escapes newlines, this ensures the key stays formatted correctly
   privateKey = process.env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n');
-} else {
-  privateKey = readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH || './devflow-ci.2026-06-17.private-key.pem', 'utf8');
+} 
+// 2. Local Mode (Your PC): Fall back to reading the .pem file path
+else if (process.env.GITHUB_APP_PRIVATE_KEY_PATH) {
+  const fs = require('fs');
+  privateKey = fs.readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH, 'utf8');
+} 
+// 3. Failsafe
+else {
+  throw new Error("Missing GitHub Private Key environment variables!");
 }
 
 const app = new App({
