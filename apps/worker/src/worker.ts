@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import http from 'http';
+import { readFileSync } from 'fs';
 import { Worker } from 'bullmq';
 import { App } from '@octokit/app';
 import { Octokit } from '@octokit/rest';
@@ -9,21 +10,10 @@ import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 
 // ── External clients ──────────────────────────────────────────────────────────
-let privateKey = '';
-
-// 1. Cloud Mode (Render): Use the raw text from the environment variable directly
-if (process.env.GITHUB_APP_PRIVATE_KEY) {
-  privateKey = process.env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n');
-} 
-// 2. Local Mode (Your PC): Fall back to reading the .pem file path
-else if (process.env.GITHUB_APP_PRIVATE_KEY_PATH) {
-  const fs = require('fs');
-  privateKey = fs.readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH, 'utf8');
-} 
-// 3. Failsafe
-else {
-  throw new Error("Missing GitHub Private Key environment variables!");
-}
+// Read private key from env var (Render) or file (local)
+const privateKey = process.env.GITHUB_APP_PRIVATE_KEY 
+  ? process.env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n')
+  : readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH || './devflow-ci.2026-06-17.private-key.pem', 'utf8');
 
 const app = new App({
   appId: process.env.GITHUB_APP_ID || '',
