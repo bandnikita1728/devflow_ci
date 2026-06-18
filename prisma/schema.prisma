@@ -8,16 +8,19 @@ datasource db {
 }
 
 model User {
-  id             String       @id @default(uuid())
-  githubId       String       @unique
-  username       String       @unique
-  email          String?
-  avatarUrl      String?
-  encryptedToken String?
-  createdAt      DateTime     @default(now())
+  id              String       @id @default(uuid())
+  githubId        String       @unique
+  username        String       @unique
+  email           String?
+  avatarUrl       String?
+  encryptedToken  String?
+  privacyAccepted Boolean      @default(false)
+  createdAt       DateTime     @default(now())
 
-  repositories   Repository[]
-  pullRequests   PullRequest[]
+  repositories    Repository[]
+  pullRequests    PullRequest[]
+
+  @@index([createdAt])
 }
 
 model Repository {
@@ -44,6 +47,7 @@ model PullRequest {
   jobs         ReviewJob[]
 
   @@unique([repoFullName, prNumber])
+  @@index([createdAt])
 }
 
 model ReviewJob {
@@ -59,6 +63,8 @@ model ReviewJob {
   completedAt      DateTime?
 
   comments         ReviewComment[]
+
+  @@index([createdAt])
 }
 
 model ReviewComment {
@@ -72,4 +78,6 @@ model ReviewComment {
   commentBody     String    @db.Text
   githubCommentId String?
   createdAt       DateTime  @default(now())
+
+  @@index([createdAt])
 }

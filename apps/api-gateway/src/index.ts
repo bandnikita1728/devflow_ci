@@ -36,6 +36,8 @@ import authRoutes from './routes/auth';
 import { requireAuth } from './middleware/requireAuth';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -65,6 +67,24 @@ app.use(cors({
   origin: ['http://localhost:5173', 'http://172.31.245.4:5173'],
   credentials: true,
 }));
+
+app.use(helmet());
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  message: { error: 'Too many auth attempts, try again later' }
+});
+
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100,
+  message: { error: 'Too many requests' }
+});
+
+app.use('/auth', authLimiter);
+app.use('/api/auth', authLimiter);
+app.use('/webhooks', webhookLimiter);
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 

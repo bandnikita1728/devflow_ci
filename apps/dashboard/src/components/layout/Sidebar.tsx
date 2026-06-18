@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, GitPullRequest } from "lucide-react";
+import { LayoutDashboard, GitPullRequest, Settings, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/reviews", icon: GitPullRequest, label: "Reviews" },
+  { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
 export function Sidebar() {
@@ -34,6 +35,20 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      <div className="p-4 border-t border-gh-border">
+        <NavLink
+          to="/privacy"
+          className={({ isActive }) =>
+            cn(
+              "flex items-center gap-2 text-sm text-gh-text-secondary hover:text-gh-text-primary transition-colors",
+              isActive && "text-gh-text-primary font-medium"
+            )
+          }
+        >
+          <Shield className="w-4 h-4" />
+          Privacy Policy
+        </NavLink>
+      </div>
     </aside>
   );
 }

@@ -5,6 +5,20 @@ import jwt from 'jsonwebtoken';
 const router = Router();
 const prisma = new PrismaClient();
 
+import CryptoJS from 'crypto-js';
+import { getRedisClient } from '../redis';
+
+const ENCRYPTION_KEY = process.env.TOKEN_ENCRYPTION_KEY || 'fallback_32_char_key_change_me!!';
+
+export const encryptToken = (token: string): string => {
+  return CryptoJS.AES.encrypt(token, ENCRYPTION_KEY).toString();
+};
+
+export const decryptToken = (encrypted: string): string => {
+  const bytes = CryptoJS.AES.decrypt(encrypted, ENCRYPTION_KEY);
+  return bytes.toString(CryptoJS.enc.Utf8);
+};
+
 const CLIENT_ID = process.env.GITHUB_CLIENT_ID;
 const CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
@@ -89,20 +103,24 @@ router.get('/github/callback', async (req: Request, res: Response): Promise<void
         username,
         email,
         avatarUrl,
-        encryptedToken: accessToken,
+        encryptedToken: encryptToken(accessToken),
       },
       create: {
         githubId,
         username,
         email,
         avatarUrl,
-        encryptedToken: accessToken,
+        encryptedToken: encryptToken(accessToken),
       },
     });
 
     // 4. Issue JWT and Refresh Token
     const jwtToken = generateToken(user);
     const refreshToken = generateRefreshToken(user);
+
+    // On login — store refresh token in Redis
+    const redis = getRedisClient();
+    await redis.set(`refresh:${user.id}`, refreshToken, 'EX', 7 * 24 * 3600);
 
     res.cookie('token', jwtToken, {
       httpOnly: true,
@@ -142,6 +160,13 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const redis = getRedisClient();
+    const storedToken = await redis.get(`refresh:${decoded.id}`);
+    if (storedToken !== refreshToken) {
+      res.status(401).json({ error: 'Refresh token invalidated' });
+      return;
+    }
+
     const user = await prisma.user.findUnique({ where: { id: decoded.id } });
     if (!user) {
       res.status(401).json({ error: 'User not found' });
@@ -163,10 +188,78 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
 });
 
 // POST /auth/logout
-router.post('/logout', (_req: Request, res: Response) => {
+router.post('/logout', async (req: Request, res: Response): Promise<void> => {
+  const refreshToken = req.cookies?.refreshToken;
+  if (refreshToken) {
+    try {
+      const decoded = jwt.verify(refreshToken, JWT_SECRET) as { id: string };
+      const redis = getRedisClient();
+      await redis.del(`refresh:${decoded.id}`);
+    } catch (e) {
+      // ignore token errors on logout
+    }
+  }
   res.clearCookie('token');
   res.clearCookie('refreshToken');
   res.json({ success: true });
+});
+
+// POST /auth/consent
+router.post('/consent', async (req: Request, res: Response): Promise<void> => {
+  const token = req.cookies?.token;
+  if (!token) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+    await prisma.user.update({
+      where: { id: decoded.id },
+      data: { privacyAccepted: true }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update consent' });
+  }
+});
+
+// DELETE /auth/account — delete all user data
+router.delete('/account', async (req: Request, res: Response): Promise<void> => {
+  const token = req.cookies?.token;
+  if (!token) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+    
+    // Delete all user data in order (FK constraints)
+    await prisma.reviewComment.deleteMany({
+      where: { reviewJob: { pullRequest: { userId: decoded.id } } }
+    });
+    await prisma.reviewJob.deleteMany({
+      where: { pullRequest: { userId: decoded.id } }
+    });
+    await prisma.pullRequest.deleteMany({
+      where: { userId: decoded.id }
+    });
+    await prisma.repository.deleteMany({
+      where: { userId: decoded.id }
+    });
+    await prisma.user.delete({
+      where: { id: decoded.id }
+    });
+    
+    // Clear cookies and Redis refresh token
+    const redis = getRedisClient();
+    await redis.del(`refresh:${decoded.id}`);
+    res.clearCookie('token');
+    res.clearCookie('refreshToken');
+    
+    res.json({ success: true, message: 'All your data has been permanently deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
 });
 
 // GET /api/auth/me (also works without /api prefix depending on where it's mounted)
@@ -181,7 +274,7 @@ router.get('/me', async (req: Request, res: Response): Promise<void> => {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
-      select: { id: true, githubId: true, username: true, email: true, avatarUrl: true },
+      select: { id: true, githubId: true, username: true, email: true, avatarUrl: true, privacyAccepted: true },
     });
     if (!user) {
       res.status(401).json({ error: 'User not found' });
