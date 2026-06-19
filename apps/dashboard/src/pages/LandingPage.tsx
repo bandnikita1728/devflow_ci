@@ -1,8 +1,6 @@
 import { Shield, MessageSquare, Zap, Bot, CheckCircle, BarChart2 } from 'lucide-react';
 
 export function LandingPage() {
-  const authUrl = "https://devflow-api-gateway.onrender.com/auth/github";
-
   return (
     <div className="min-h-screen bg-[#0d1117] text-[#e6edf3] font-sans selection:bg-[#1f6feb] selection:text-white">
       {/* 1 - Top Navbar */}
@@ -21,14 +19,15 @@ export function LandingPage() {
         </div>
         <div className="flex items-center gap-4">
           <a
-            href={authUrl}
+            href="https://devflow-api-gateway.onrender.com/auth/github"
             className="text-sm font-medium text-[#e6edf3] hover:text-[#58a6ff] transition-colors"
           >
             Sign in
           </a>
           <a
-            href={authUrl}
+            href="https://devflow-api-gateway.onrender.com/auth/github"
             className="bg-[#238636] hover:bg-[#2ea043] text-[#ffffff] px-4 py-2 rounded-md text-sm font-semibold transition-colors"
+            style={{ color: '#ffffff' }}
           >
             Get started free
           </a>
@@ -52,8 +51,9 @@ export function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto mb-6">
             <a
-              href={authUrl}
+              href="https://devflow-api-gateway.onrender.com/auth/github"
               className="w-full sm:w-auto bg-[#238636] hover:bg-[#2ea043] text-[#ffffff] px-8 py-3.5 rounded-md text-base font-semibold transition-colors text-center"
+              style={{ color: '#ffffff' }}
             >
               Get started free
             </a>
@@ -154,8 +154,9 @@ export function LandingPage() {
             <h2 className="text-4xl font-bold mb-4 text-white">Start reviewing code smarter.</h2>
             <p className="text-xl text-[#8b949e] mb-8">Connect your first repo in under 2 minutes.</p>
             <a
-              href={authUrl}
+              href="https://devflow-api-gateway.onrender.com/auth/github"
               className="inline-flex bg-[#238636] hover:bg-[#2ea043] text-[#ffffff] px-8 py-4 rounded-md text-lg font-bold transition-colors shadow-lg hover:shadow-[#238636]/20"
+              style={{ color: '#ffffff' }}
             >
               Sign in with GitHub
             </a>
