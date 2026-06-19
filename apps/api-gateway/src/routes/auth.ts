@@ -42,7 +42,7 @@ const generateRefreshToken = (user: { id: string }) => {
 
 // GET /auth/github
 router.get('/github', (_req: Request, res: Response) => {
-  const redirectUri = 'http://localhost:3001/auth/github/callback';
+  const redirectUri = `${process.env.API_URL || 'http://localhost:3001'}/auth/github/callback`;
   const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${CLIENT_ID}&redirect_uri=${redirectUri}&scope=user,repo`;
   res.redirect(githubAuthUrl);
 });
