@@ -228,13 +228,38 @@ devflow_ci/
 
 ## 🗺️ Roadmap
 
-- [ ] Deploy to Render (in progress)
+### ✅ Version 1 (Shipped)
+- [x] Webhook pipeline with HMAC-SHA256 validation
+- [x] Redis NX atomic idempotency
+- [x] BullMQ async job queue with dead-letter queue
+- [x] Gemini 2.5 Flash structured inline code reviews
+- [x] GitHub App bot for posting reviews
+- [x] AES-256 OAuth token encryption at rest
+- [x] XML prompt injection defense
+- [x] PostgreSQL persistence via Prisma
+- [x] GitHub OAuth authentication with JWT refresh
+- [x] React dashboard (GitHub dark theme)
+- [x] Repo management page
+- [x] Privacy policy + account deletion
+- [x] Deployed to Render
+
+### 🚧 Version 2 (In Progress)
+- [ ] GitHub Actions CI/CD pipeline — auto-deploy on push
+- [ ] Circuit breaker (opossum) — graceful Gemini failure handling
+- [ ] Separate Redis instances — queue vs cache isolation
+- [ ] Per-user API rate limiting
+- [ ] Token budget enforcement before AI call
+- [ ] Grafana Cloud monitoring + alerting
+- [ ] Webhook retry visibility in dashboard
+- [ ] Horizontal worker scaling
+
+### 🔮 Future
 - [ ] OpenAI and Claude model support alongside Gemini
-- [ ] Webhook retry logic with exponential backoff
-- [ ] Email notifications on review completion
-- [ ] Custom review rules per repository
+- [ ] Custom review rules per repository (.devflow.json)
+- [ ] Slack/Discord notifications on review completion
 - [ ] Review analytics dashboard (trends, severity over time)
 - [ ] Multi-org support
+- [ ] GitHub App Marketplace listing
 
 ## 🤝 Contributing
 
