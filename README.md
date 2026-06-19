@@ -13,7 +13,7 @@
 
 ## 🎯 Demo
 
-> 🚧 Live demo coming soon — deploy in progress.
+> 🚧 Live demo -https://devflow-ci-dashboard.onrender.com.
 
 ![DevFlow CI Demo](docs/demo.png)
 *DevFlow CI bot catching a SQL injection vulnerability inline on a GitHub PR*
