@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function checkAuth() {
       try {
-        const response = await api.get(`/auth/me`, { withCredentials: true });
+        const response = await api.get(`/auth/me`);
         setUser(response.data);
       } catch (err) {
         setUser(null);
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await api.post(`/auth/logout`, {}, { withCredentials: true });
+      await api.post(`/auth/logout`);
       setUser(null);
       setToken(null);
       setAuthToken(null);
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const acceptPrivacy = async () => {
     try {
-      await api.post(`/auth/consent`, {}, { withCredentials: true });
+      await api.post(`/auth/consent`);
       setUser(prev => prev ? { ...prev, privacyAccepted: true } : null);
     } catch (err) {
       console.error('Failed to accept privacy', err);
