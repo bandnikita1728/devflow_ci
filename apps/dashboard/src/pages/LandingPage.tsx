@@ -1,4 +1,4 @@
-import { Shield, MessageSquare, Zap, Bot, CheckCircle, BarChart2, GitPullRequest } from 'lucide-react';
+import { Shield, MessageSquare, Zap, Bot, CheckCircle, BarChart2 } from 'lucide-react';
 
 export function LandingPage() {
   const authUrl = "https://devflow-api-gateway.onrender.com/auth/github";
@@ -8,9 +8,15 @@ export function LandingPage() {
       {/* 1 - Top Navbar */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-[#30363d] bg-[#161b22]/50 backdrop-blur-md sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="bg-[#238636] p-1.5 rounded-md">
-            <GitPullRequest className="w-5 h-5 text-white" />
-          </div>
+          <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M6 5 L4 1 L8 3" />
+            <path d="M16 5 L18 1 L14 3" />
+            <circle cx="8" cy="10" r="1" fill="currentColor" stroke="none" />
+            <circle cx="14" cy="10" r="1" fill="currentColor" stroke="none" />
+            <circle cx="18" cy="18" r="4" />
+            <path d="M20.8 20.8 L23 23" />
+          </svg>
           <span className="text-lg font-semibold tracking-tight">DevFlow CI</span>
         </div>
         <div className="flex items-center gap-4">
@@ -22,7 +28,7 @@ export function LandingPage() {
           </a>
           <a
             href={authUrl}
-            className="bg-[#238636] hover:bg-[#2ea043] text-white px-4 py-2 rounded-md text-sm font-semibold transition-colors"
+            className="bg-[#238636] hover:bg-[#2ea043] text-[#ffffff] px-4 py-2 rounded-md text-sm font-semibold transition-colors"
           >
             Get started free
           </a>
@@ -47,7 +53,7 @@ export function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto mb-6">
             <a
               href={authUrl}
-              className="w-full sm:w-auto bg-[#238636] hover:bg-[#2ea043] text-white px-8 py-3.5 rounded-md text-base font-semibold transition-colors text-center"
+              className="w-full sm:w-auto bg-[#238636] hover:bg-[#2ea043] text-[#ffffff] px-8 py-3.5 rounded-md text-base font-semibold transition-colors text-center"
             >
               Get started free
             </a>
@@ -149,7 +155,7 @@ export function LandingPage() {
             <p className="text-xl text-[#8b949e] mb-8">Connect your first repo in under 2 minutes.</p>
             <a
               href={authUrl}
-              className="inline-flex bg-[#238636] hover:bg-[#2ea043] text-white px-8 py-4 rounded-md text-lg font-bold transition-colors shadow-lg hover:shadow-[#238636]/20"
+              className="inline-flex bg-[#238636] hover:bg-[#2ea043] text-[#ffffff] px-8 py-4 rounded-md text-lg font-bold transition-colors shadow-lg hover:shadow-[#238636]/20"
             >
               Sign in with GitHub
             </a>
