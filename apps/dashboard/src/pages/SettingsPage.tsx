@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { API_BASE_URL } from '../config';
+import { api } from '../lib/api';
 import { AlertCircle } from 'lucide-react';
 
 export function SettingsPage() {
@@ -17,7 +16,7 @@ export function SettingsPage() {
     
     setIsDeleting(true);
     try {
-      await axios.delete(`${API_BASE_URL}/api/auth/account`, { withCredentials: true });
+      await api.delete(`/auth/account`, { withCredentials: true });
       await logout();
       navigate('/login');
     } catch (err) {

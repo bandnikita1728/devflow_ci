@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API_BASE_URL } from '../config';
+import { api } from '../lib/api';
 import { Book, CheckCircle, Trash2, Plus } from 'lucide-react';
 
 interface Repo {
@@ -23,7 +22,7 @@ export function ReposPage() {
 
   const fetchRepos = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/repos`, { withCredentials: true });
+      const res = await api.get(`/repos`, { withCredentials: true });
       setRepos(res.data);
     } catch (err) {
       console.error('Failed to fetch repos', err);
@@ -37,7 +36,7 @@ export function ReposPage() {
     if (!newRepoName) return;
     setIsConnecting(true);
     try {
-      await axios.post(`${API_BASE_URL}/api/repos`, { repoFullName: newRepoName }, { withCredentials: true });
+      await api.post(`/repos`, { repoFullName: newRepoName }, { withCredentials: true });
       setNewRepoName('');
       setIsModalOpen(false);
       fetchRepos();
@@ -53,7 +52,7 @@ export function ReposPage() {
       return;
     }
     try {
-      await axios.delete(`${API_BASE_URL}/api/repos/${id}`, { withCredentials: true });
+      await api.delete(`/repos/${id}`, { withCredentials: true });
       fetchRepos();
     } catch (err) {
       alert('Failed to disconnect repository.');

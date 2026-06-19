@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import axios from 'axios';
-import { API_BASE_URL } from '../config';
+import { api, setAuthToken } from '../lib/api';
 import { Link } from 'react-router-dom';
 
 interface User {
@@ -33,14 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (urlToken) {
       setToken(urlToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${urlToken}`;
+      setAuthToken(urlToken);
       // Clear URL params
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     async function checkAuth() {
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/auth/me`, { withCredentials: true });
+        const response = await api.get(`/auth/me`, { withCredentials: true });
         setUser(response.data);
       } catch (err) {
         setUser(null);
@@ -53,10 +52,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await axios.post(`${API_BASE_URL}/api/auth/logout`, {}, { withCredentials: true });
+      await api.post(`/auth/logout`, {}, { withCredentials: true });
       setUser(null);
       setToken(null);
-      delete axios.defaults.headers.common['Authorization'];
+      setAuthToken(null);
     } catch (err) {
       console.error('Logout failed', err);
     }
@@ -64,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const acceptPrivacy = async () => {
     try {
-      await axios.post(`${API_BASE_URL}/api/auth/consent`, {}, { withCredentials: true });
+      await api.post(`/auth/consent`, {}, { withCredentials: true });
       setUser(prev => prev ? { ...prev, privacyAccepted: true } : null);
     } catch (err) {
       console.error('Failed to accept privacy', err);
