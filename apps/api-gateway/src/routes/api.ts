@@ -157,25 +157,41 @@ router.post('/repos', async (req: Request, res: Response): Promise<void> => {
     const webhookUrl = process.env.WEBHOOK_URL || 'https://your-ngrok-url/webhooks/github';
     const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET || process.env.GITHUB_SECRET;
 
-    const hook = await octokit.repos.createWebhook({
-      owner,
-      repo,
-      name: 'web',
-      active: true,
-      events: ['pull_request'],
-      config: {
-        url: webhookUrl,
-        content_type: 'json',
-        secret: webhookSecret,
+    let hookId: string;
+    try {
+      const hook = await octokit.repos.createWebhook({
+        owner,
+        repo,
+        name: 'web',
+        active: true,
+        events: ['pull_request'],
+        config: {
+          url: webhookUrl,
+          content_type: 'json',
+          secret: webhookSecret,
+        }
+      });
+      hookId = hook.data.id.toString();
+    } catch (err: any) {
+      if (err.status === 422) {
+        // Webhook already exists on this repo (e.g. from an earlier connection attempt) — reuse it instead of failing
+        const { data: hooks } = await octokit.repos.listWebhooks({ owner, repo });
+        const existingHook = hooks.find((h: any) => h.config?.url === webhookUrl) || hooks[0];
+        if (!existingHook) {
+          throw err;
+        }
+        hookId = existingHook.id.toString();
+      } else {
+        throw err;
       }
-    });
+    }
 
     const newRepo = await prisma.repository.create({
       data: {
         userId,
         githubRepoId: ghRepo.data.id.toString(),
         fullName: repoFullName,
-        webhookId: hook.data.id.toString(),
+        webhookId: hookId,
         isActive: true,
       }
     });
