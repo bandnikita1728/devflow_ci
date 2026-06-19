@@ -3,7 +3,7 @@ import { LayoutDashboard, GitPullRequest, Settings, Shield, Book } from "lucide-
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/repos", icon: Book, label: "Repositories" },
   { to: "/reviews", icon: GitPullRequest, label: "Reviews" },
   { to: "/settings", icon: Settings, label: "Settings" },
