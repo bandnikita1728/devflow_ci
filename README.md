@@ -56,39 +56,75 @@
 
 ## 🏗️ Architecture
 
+### System Overview
+
 ```text
-GitHub PR Opened
-    │
-    ▼
-Webhook (HMAC verified)
-    │
-    ▼
-BullMQ Queue (Redis)
-    │
-    ▼
-Worker picks up job
-    │
-    ▼
-Fetch diff from GitHub API
-    │
-    ▼
-Filter files (skip node_modules, >50KB)
-    │
-    ▼
-Send to Gemini AI (structured JSON output)
-    │
-    ▼
-Parse inline comments
-    │
-    ▼
-Post via GitHub App bot
-    │
-    ▼
-Save to PostgreSQL
-    │
-    ▼
-Dashboard updates
+┌─────────────────────────────────────────────────────────────┐
+│                        GITHUB PLATFORM                       │
+└───────────────┬─────────────────────────────▲───────────────┘
+                │ 1. Webhook (PR Event)        │ 6. Post Inline Comments
+                ▼                             │
+┌───────────────────────────────────────────────────────────┐
+│                     React Dashboard                        │
+│         Stats │ Reviews │ Repos │ Auth Flow               │
+└───────────────────────────┬───────────────────────────────┘
+                            │ HTTPS
+┌───────────────────────────▼───────────────────────────────┐
+│                   NODE.JS API GATEWAY                      │
+│  ┌─────────────────┐  ┌──────────────────┐                │
+│  │  Auth Service   │  │ Webhook Handler  │                │
+│  │  GitHub OAuth   │  │ HMAC validation  │                │
+│  │  JWT + Refresh  │  │ Idempotency NX   │                │
+│  └─────────────────┘  └────────┬─────────┘                │
+└───────────────────────────────┼───────────────────────────┘
+                                │ enqueue
+                    ┌───────────▼──────────────┐
+                    │   Redis (BullMQ Queue)    │
+                    │   pr-review-queue         │
+                    │   dead-letter-queue       │
+                    └───────────┬──────────────┘
+                                │ consume
+                    ┌───────────▼──────────────────────────┐
+                    │          Worker Service               │
+                    │  1. Fetch diff via GitHub API         │
+                    │  2. Filter files (>50KB skipped)      │
+                    │  3. XML prompt injection defense       │
+                    │  4. Call Gemini 2.5 Flash             │
+                    │  5. Parse structured JSON comments    │
+                    │  6. Post via GitHub App bot           │
+                    │  7. Persist to PostgreSQL             │
+                    └──────────────────────────────────────┘
+                                │
+                    ┌───────────▼──────────────┐
+                    │       DATA LAYER         │
+                    │  PostgreSQL (Prisma)      │
+                    │  Redis (Cache + Queue)    │
+                    └──────────────────────────┘
 ```
+
+### Request Flow
+
+1. Dev opens a Pull Request on GitHub
+2. GitHub sends `POST /webhooks/github` with HMAC signature
+3. API Gateway validates HMAC-SHA256, checks Redis idempotency lock (NX atomic)
+4. Job enqueued to BullMQ, gateway returns `202` in < 50ms
+5. Worker picks up job, fetches raw diff from GitHub API
+6. Files > 50KB and generated files filtered out
+7. Diff wrapped in XML boundary tags (prompt injection defense)
+8. Gemini 2.5 Flash analyzes and returns structured JSON array of comments
+9. Worker posts inline comments to GitHub PR via GitHub App bot
+10. Review persisted to PostgreSQL, dashboard updates
+
+### Failure Handling
+
+| Failure | Handling |
+|---------|----------|
+| HMAC invalid | 401, request dropped |
+| Duplicate webhook | Redis NX idempotency → 202, skip |
+| File > 50KB | Excluded from AI context silently |
+| AI parse failure | Falls back to single general comment |
+| Job exhausted retries | Dead-letter queue |
+| GitHub API 429 | Exponential backoff, BullMQ retry |
 
 ## 🚀 Getting Started
 
