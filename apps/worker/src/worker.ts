@@ -134,7 +134,7 @@ ${safeDiff}
       const inlineComments = reviewComments
         .filter(c => c.file !== 'general' && c.line)
         .map(c => ({
-          path: c.file,
+          path: c.file.replace(/^[ab]\//, ''),
           line: c.line,
           body: `**[${c.severity.toUpperCase()}] ${c.category}**\n\n${c.comment}`
         }));
@@ -197,7 +197,7 @@ ${safeDiff}
     await prisma.reviewComment.createMany({
       data: reviewComments.map(c => ({
         reviewJobId: reviewJob.id,
-        filePath: c.file,
+        filePath: c.file.replace(/^[ab]\//, ''),
         lineNumber: c.line || null,
         commentType: c.category,
         severity: c.severity,
