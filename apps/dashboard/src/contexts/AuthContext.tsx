@@ -23,9 +23,21 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Extract token from URL params
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    
+    if (urlToken) {
+      setToken(urlToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${urlToken}`;
+      // Clear URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     async function checkAuth() {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/auth/me`, { withCredentials: true });
@@ -43,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await axios.post(`${API_BASE_URL}/api/auth/logout`, {}, { withCredentials: true });
       setUser(null);
+      setToken(null);
+      delete axios.defaults.headers.common['Authorization'];
     } catch (err) {
       console.error('Logout failed', err);
     }

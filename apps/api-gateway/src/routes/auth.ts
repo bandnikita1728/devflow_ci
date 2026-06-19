@@ -141,7 +141,7 @@ router.get('/github/callback', async (req: Request, res: Response): Promise<void
     if (!frontendUrl.startsWith('http')) {
       frontendUrl = `https://${frontendUrl}`;
     }
-    res.redirect(frontendUrl);
+    res.redirect(`${frontendUrl}?token=${jwtToken}&refresh=${refreshToken}`);
   } catch (err) {
     console.error('OAuth Callback Error:', err);
     res.status(500).json({ error: 'OAuth flow failed' });
@@ -209,7 +209,8 @@ router.post('/logout', async (req: Request, res: Response): Promise<void> => {
 
 // POST /auth/consent
 router.post('/consent', async (req: Request, res: Response): Promise<void> => {
-  const token = req.cookies?.token;
+  const authHeader = req.headers.authorization;
+  const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.split(' ')[1] : req.cookies?.token;
   if (!token) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -228,7 +229,8 @@ router.post('/consent', async (req: Request, res: Response): Promise<void> => {
 
 // DELETE /auth/account — delete all user data
 router.delete('/account', async (req: Request, res: Response): Promise<void> => {
-  const token = req.cookies?.token;
+  const authHeader = req.headers.authorization;
+  const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.split(' ')[1] : req.cookies?.token;
   if (!token) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -267,7 +269,8 @@ router.delete('/account', async (req: Request, res: Response): Promise<void> => 
 
 // GET /api/auth/me (also works without /api prefix depending on where it's mounted)
 router.get('/me', async (req: Request, res: Response): Promise<void> => {
-  const token = req.cookies?.token;
+  const authHeader = req.headers.authorization;
+  const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.split(' ')[1] : req.cookies?.token;
   if (!token) {
     res.status(401).json({ error: 'Not authenticated' });
     return;

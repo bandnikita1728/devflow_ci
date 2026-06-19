@@ -17,7 +17,10 @@ declare global {
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const token = req.cookies?.token;
+    const authHeader = req.headers.authorization;
+    const token = (authHeader && authHeader.startsWith('Bearer ')) 
+      ? authHeader.split(' ')[1] 
+      : req.cookies?.token;
     
     if (!token) {
       res.status(401).json({ error: 'Unauthorized' });
