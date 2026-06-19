@@ -170,7 +170,7 @@ export function LandingPage() {
           DevFlow CI © 2026 · Built by Nikita Band
         </div>
         <div className="flex gap-6">
-          <a href="/privacy" className="hover:text-[#58a6ff] transition-colors">Privacy Policy</a>
+          <a href="/privacy" className="hover:text-[#58a6ff] transition-colors" style={{ color: '#8b949e' }}>Privacy Policy</a>
           <a href="https://github.com/bandnikita1728/devflow_ci" target="_blank" rel="noreferrer" className="hover:text-[#58a6ff] transition-colors">
             GitHub
           </a>
