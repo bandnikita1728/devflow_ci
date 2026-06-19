@@ -125,14 +125,14 @@ router.get('/github/callback', async (req: Request, res: Response): Promise<void
     res.cookie('token', jwtToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Use lax to allow cross-site redirect from GitHub without losing cookie
+      sameSite: 'none', // Use lax to allow cross-site redirect from GitHub without losing cookie
       maxAge: 3600000, // 1h
     });
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: 7 * 24 * 3600000, // 7d
     });
 
@@ -180,7 +180,7 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
     res.cookie('token', jwtToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: 3600000, // 1h
     });
 
