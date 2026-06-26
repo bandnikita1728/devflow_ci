@@ -61,6 +61,7 @@ const mockFindUnique = jest.fn();
 const mockUpsert = jest.fn();
 const mockCreate = jest.fn();
 const mockCreateMany = jest.fn();
+const mockFindFirst = jest.fn();
 
 jest.mock('@prisma/client', () => {
   return {
@@ -75,6 +76,9 @@ jest.mock('@prisma/client', () => {
         },
         reviewComment: {
           createMany: mockCreateMany,
+        },
+        repository: {
+          findFirst: mockFindFirst,
         },
       };
     }),
@@ -146,6 +150,7 @@ describe('Worker processReviewJob', () => {
     } as unknown as Job;
 
     // Default mocks behavior
+    mockFindFirst.mockResolvedValue({ userId: 'user-123' });
     mockFindUnique.mockResolvedValue(null); // Not already reviewed
     mockRequest.mockResolvedValue({ data: { id: 999 } }); // Installation ID
     mockGetInstallationOctokit.mockResolvedValue(mockOctokitInstance);
@@ -239,12 +244,14 @@ describe('Worker processReviewJob', () => {
       update: {
         headSha: 'abc123headsha',
         status: 'reviewed',
+        userId: 'user-123',
       },
       create: {
         repoFullName: 'test-owner/test-repo',
         prNumber: 42,
         headSha: 'abc123headsha',
         status: 'reviewed',
+        userId: 'user-123',
       },
     });
 

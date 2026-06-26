@@ -105,6 +105,12 @@ export async function processReviewJob(job: Job): Promise<void> {
       throw new Error('Invalid installationId: NaN');
     }
 
+    // Look up the repository to get the userId
+    const repository = await prisma.repository.findFirst({
+      where: { fullName: repositoryFullName as string },
+      select: { userId: true },
+    });
+
     // ── Idempotency gate: skip if this headSha is already reviewed ────────
     if (await isAlreadyReviewed(repositoryFullName, number, headSha)) {
       console.info(
@@ -140,12 +146,14 @@ export async function processReviewJob(job: Job): Promise<void> {
           update: {
             headSha: (headSha as string) || '',
             status: 'failed',
+            userId: repository?.userId ?? null,
           },
           create: {
             repoFullName: repositoryFullName as string,
             prNumber: number,
             headSha: (headSha as string) || '',
             status: 'failed',
+            userId: repository?.userId ?? null,
           },
         });
 
@@ -259,12 +267,14 @@ export async function processReviewJob(job: Job): Promise<void> {
       update: {
         headSha: (headSha as string) || '',
         status: 'reviewed',
+        userId: repository?.userId ?? null,
       },
       create: {
         repoFullName: repositoryFullName as string,
         prNumber: number,
         headSha: (headSha as string) || '',
         status: 'reviewed',
+        userId: repository?.userId ?? null,
       },
     });
 
