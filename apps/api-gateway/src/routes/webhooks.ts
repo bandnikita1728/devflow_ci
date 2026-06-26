@@ -62,6 +62,9 @@ router.post(
     // ── 3. Validate this is a pull_request event we care about ───────────────
     const payload = req.body as Record<string, unknown>;
 
+    console.log('[Webhook] DEBUG installation field:', JSON.stringify(payload['installation']));
+    console.log('[Webhook] DEBUG full payload keys:', Object.keys(payload));
+
     if (eventName !== 'pull_request') {
       console.info(`[Webhook] Ignoring non-PR event: ${eventName}`);
       webhookEventsReceived.inc({ event_type: eventName, validation_status: 'ignored' });
