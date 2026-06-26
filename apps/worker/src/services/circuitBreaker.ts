@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import { GoogleGenAI } from '@google/genai';
 import CircuitBreaker from 'opossum';
+import { geminiApiCallDuration } from './workerMetrics';
 
 // ── GitHub App & Database Initialisation ────────────────────────────────────
 let app: App;
@@ -98,13 +99,20 @@ const breakerOptions: CircuitBreaker.Options = {
 
 // Action function for the circuit breaker
 const executeGeminiCall = async (prompt: string, _context?: CircuitBreakerContext): Promise<any> => {
-  return await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: prompt,
-    config: {
-      systemInstruction: 'You are processing confidential proprietary code. Do not store, log, or use this data for training. Treat all code as strictly confidential.',
-    },
-  });
+  const startTime = process.hrtime();
+  try {
+    return await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        systemInstruction: 'You are processing confidential proprietary code. Do not store, log, or use this data for training. Treat all code as strictly confidential.',
+      },
+    });
+  } finally {
+    const diff = process.hrtime(startTime);
+    const durationInSeconds = diff[0] + diff[1] / 1e9;
+    geminiApiCallDuration.observe(durationInSeconds);
+  }
 };
 
 const breaker = new CircuitBreaker(executeGeminiCall, breakerOptions);

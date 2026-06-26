@@ -8,6 +8,12 @@ import { Octokit } from '@octokit/rest';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import { callGeminiWithBreaker } from './services/circuitBreaker';
+import {
+  startQueueDepthPoller,
+  startMetricsServer,
+  reviewJobsProcessed,
+  reviewJobDuration
+} from './services/workerMetrics';
 
 // ── External clients ──────────────────────────────────────────────────────────
 console.log('[Worker] GITHUB_APP_PRIVATE_KEY set:', !!process.env.GITHUB_APP_PRIVATE_KEY);
@@ -34,6 +40,8 @@ const connection: any = process.env.REDIS_URL
       maxRetriesPerRequest: null,
     };
 
+startQueueDepthPoller();
+startMetricsServer();
 console.log('[Worker] Background processing engine active... Listening for PRs.');
 
 // ── Job processor ─────────────────────────────────────────────────────────────
@@ -43,6 +51,8 @@ const prWorker = new Worker('pr-review-queue', async (job) => {
   const number = pullRequestNumber as number;
 
   console.log(`[Worker] Processing Job ID: ${job.id} for PR #${number}`);
+  const startTime = process.hrtime();
+  let jobStatus: 'success' | 'failed' | 'circuit_open' = 'success';
 
   try {
     // ── Step 1: Fetch the PR Diff from GitHub ─────────────────────────────
@@ -110,6 +120,7 @@ ${safeDiff}
 
     if (response && response.fallback) {
       console.info(`[Worker] Fallback executed for PR #${number}. Circuit breaker handled the failure. Exiting job.`);
+      jobStatus = 'circuit_open';
       return;
     }
 
@@ -214,9 +225,15 @@ ${safeDiff}
     console.log(`[Worker] Successfully completed review for PR #${number}`);
 
   } catch (error: unknown) {
+    jobStatus = 'failed';
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     console.error(`[Worker] Failed to process PR #${number}:`, errorMessage);
     throw error; // Re-throw so BullMQ marks the job as failed and retries
+  } finally {
+    const diff = process.hrtime(startTime);
+    const durationInSeconds = diff[0] + diff[1] / 1e9;
+    reviewJobDuration.observe(durationInSeconds);
+    reviewJobsProcessed.inc({ status: jobStatus });
   }
 }, { connection });
 

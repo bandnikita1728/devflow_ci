@@ -35,6 +35,8 @@ import apiRoutes from './routes/api';
 import authRoutes from './routes/auth';
 import { requireAuth } from './middleware/requireAuth';
 import { internalOnly } from './middleware/internalOnly';
+import { metricsMiddleware } from './middleware/metrics';
+import client from 'prom-client';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -44,6 +46,7 @@ import rateLimit from 'express-rate-limit';
 
 const app: Application = express();
 app.set('trust proxy', 1);
+app.use(metricsMiddleware);
 
 // ── Global Middleware ─────────────────────────────────────────────────────────
 
@@ -138,6 +141,20 @@ app.get('/health/circuit', internalOnly, async (_req: Request, res: Response): P
   } catch (error: any) {
     console.error('[API-Gateway:CircuitHealth] Error reading circuit status:', error.message);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+/**
+ * GET /metrics
+ * Exposes Prometheus metrics collected from the API Gateway.
+ */
+app.get('/metrics', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    res.set('Content-Type', client.register.contentType);
+    res.end(await client.register.metrics());
+  } catch (error: any) {
+    console.error('[API-Gateway:Metrics] Error generating metrics:', error.message);
+    res.status(500).end(error);
   }
 });
 

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { verifyGitHubSignature } from '../middleware/verifyGitHubSignature';
 import { getRedisClient } from '../redis';
 import { getPrReviewQueue, PrReviewJobData } from '../queue';
+import { webhookEventsReceived, webhookDuplicatesSkipped } from '../middleware/metrics';
 
 const router = Router();
 
@@ -53,6 +54,7 @@ router.post(
       console.info(
         `[Webhook] Duplicate delivery detected, skipping. id=${deliveryId}`,
       );
+      webhookDuplicatesSkipped.inc();
       res.status(202).json({ status: 'accepted', note: 'duplicate_skipped' });
       return;
     }
@@ -62,6 +64,7 @@ router.post(
 
     if (eventName !== 'pull_request') {
       console.info(`[Webhook] Ignoring non-PR event: ${eventName}`);
+      webhookEventsReceived.inc({ event_type: eventName, validation_status: 'ignored' });
       res.status(202).json({ status: 'accepted', note: 'event_ignored' });
       return;
     }
@@ -98,6 +101,8 @@ router.post(
         jobId: deliveryId, // Deduplicate at BullMQ layer too
       },
     );
+
+    webhookEventsReceived.inc({ event_type: eventName, validation_status: 'success' });
 
     const elapsed = Date.now() - startTime;
     console.info(

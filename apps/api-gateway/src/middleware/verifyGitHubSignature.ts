@@ -34,6 +34,7 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
 import { config } from '../config';
+import { webhookEventsReceived } from './metrics';
 
 // ── Module-level type augmentation ───────────────────────────────────────────
 
@@ -62,6 +63,10 @@ export function verifyGitHubSignature(
   // ── Step 1: Require the signature header ─────────────────────────────────
   if (!signatureHeader || typeof signatureHeader !== 'string') {
     console.warn('[Webhook] Rejected: missing X-Hub-Signature-256 header');
+    webhookEventsReceived.inc({
+      event_type: (req.headers['x-github-event'] as string) || 'unknown',
+      validation_status: 'missing_signature'
+    });
     res.status(401).json({ error: 'Missing webhook signature' });
     return;
   }
@@ -113,6 +118,10 @@ export function verifyGitHubSignature(
         `[Webhook] Rejected: HMAC-SHA256 signature mismatch ` +
         `(delivery=${req.headers['x-github-delivery'] ?? 'unknown'})`,
       );
+      webhookEventsReceived.inc({
+        event_type: (req.headers['x-github-event'] as string) || 'unknown',
+        validation_status: 'invalid_signature'
+      });
       res.status(403).json({ error: 'Invalid webhook signature' });
       return;
     }
@@ -125,6 +134,10 @@ export function verifyGitHubSignature(
         '[Webhook] Rejected: JSON parse failure after successful signature verification. ' +
         'Payload may be non-JSON or malformed.',
       );
+      webhookEventsReceived.inc({
+        event_type: (req.headers['x-github-event'] as string) || 'unknown',
+        validation_status: 'malformed_json'
+      });
       res.status(400).json({ error: 'Invalid JSON payload' });
       return;
     }
