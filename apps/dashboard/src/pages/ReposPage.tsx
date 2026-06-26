@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import { AxiosError } from 'axios';
 import { Book, CheckCircle, Trash2, Plus } from 'lucide-react';
 
 interface Repo {
@@ -40,8 +41,9 @@ export function ReposPage() {
       setNewRepoName('');
       setIsModalOpen(false);
       fetchRepos();
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to connect repository. Ensure the bot has access.');
+    } catch (err) {
+      const axiosErr = err as AxiosError<{ error?: string }>;
+      alert(axiosErr.response?.data?.error || 'Failed to connect repository. Ensure the bot has access.');
     } finally {
       setIsConnecting(false);
     }
@@ -54,7 +56,7 @@ export function ReposPage() {
     try {
       await api.delete(`/repos/${id}`, { withCredentials: true });
       fetchRepos();
-    } catch (err) {
+    } catch (_err) {
       alert('Failed to disconnect repository.');
     }
   };
