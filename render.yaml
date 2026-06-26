@@ -24,20 +24,33 @@ services:
       - key: FRONTEND_URL
         value: https://devflow-ci-dashboard.onrender.com
 
+  # ── Worker (horizontally scalable) ─────────────────────────────────────────
+  # To run multiple worker instances on Render, use Manual Scale in the Dashboard.
+  # Each instance processes WORKER_CONCURRENCY jobs in parallel.
+  # BullMQ's atomic job claiming (Redis BRPOPLPUSH) ensures no double-processing.
   - type: worker
     name: devflow-ci-worker
     runtime: node
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm run start:worker
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
         sync: false
-      - key: GITHUB_TOKEN
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_APP_PRIVATE_KEY
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: WORKER_CONCURRENCY
+        value: "5"
+      - key: METRICS_SECRET
+        sync: false
+
 
   - type: web
     name: devflow-ci-dashboard

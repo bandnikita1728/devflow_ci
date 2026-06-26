@@ -29,7 +29,7 @@ services:
   redis-queue:
     image: redis:7-alpine
     container_name: devflow_redis_queue
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:-devflow}"
     ports:
       - "6379:6379"
 
@@ -39,3 +39,45 @@ services:
     container_name: devflow_redis_cache
     ports:
       - "6380:6379"
+
+  # ── API Gateway ──────────────────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: devflow_api_gateway
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@pgbouncer:6432/devflow
+      - REDIS_QUEUE_HOST=redis-queue
+      - REDIS_QUEUE_PORT=6379
+      - PORT=3001
+    depends_on:
+      - pgbouncer
+      - redis-queue
+
+  # ── Worker (horizontally scalable) ───────────────────────────────────────────
+  # Scale with: docker compose up --scale worker=N
+  # Each instance processes WORKER_CONCURRENCY jobs in parallel.
+  # BullMQ's atomic job claiming (Redis BRPOPLPUSH) guarantees no double-processing.
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@pgbouncer:6432/devflow
+      - REDIS_QUEUE_HOST=redis-queue
+      - REDIS_QUEUE_PORT=6379
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-5}
+      - GITHUB_APP_ID=${GITHUB_APP_ID}
+      - GITHUB_APP_PRIVATE_KEY=${GITHUB_APP_PRIVATE_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - pgbouncer
+      - redis-queue
+    deploy:
+      replicas: ${WORKER_REPLICAS:-3}
+    restart: unless-stopped
+    stop_grace_period: 35s  # 30s drain + 5s buffer before SIGKILL
+

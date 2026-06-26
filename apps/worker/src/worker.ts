@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import http from 'http';
 import { readFileSync } from 'fs';
-import { Worker } from 'bullmq';
+import { Worker, Job } from 'bullmq';
 import { App } from '@octokit/app';
 import { Octokit } from '@octokit/rest';
 
@@ -42,10 +42,49 @@ const connection: any = process.env.REDIS_URL
 
 startQueueDepthPoller();
 startMetricsServer();
-console.log('[Worker] Background processing engine active... Listening for PRs.');
+
+// ── Horizontal scaling: concurrency config ────────────────────────────────────
+// WORKER_CONCURRENCY controls how many jobs this instance processes in parallel.
+// Default 5 — tune based on memory/CPU budget per instance.
+const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY) || 5;
+console.log(`[Worker] Background processing engine active (concurrency=${CONCURRENCY}). Listening for PRs.`);
+
+// ── Idempotency guard ─────────────────────────────────────────────────────────
+/**
+ * Returns true if this exact (repo, prNumber, headSha) has already been
+ * successfully reviewed. Used by all worker instances to avoid duplicate work
+ * when the same webhook fires multiple times or when a job is retried after
+ * another instance already completed it.
+ */
+async function isAlreadyReviewed(
+  repoFullName: string,
+  prNumber: number,
+  headSha: string,
+): Promise<boolean> {
+  const existing = await prisma.pullRequest.findUnique({
+    where: {
+      repoFullName_prNumber: { repoFullName, prNumber },
+    },
+    select: { headSha: true, status: true },
+  });
+  return existing?.headSha === headSha && existing?.status === 'reviewed';
+}
 
 // ── Job processor ─────────────────────────────────────────────────────────────
-const prWorker = new Worker('pr-review-queue', async (job) => {
+/**
+ * BullMQ guarantees atomic job claiming via Redis BRPOPLPUSH — when multiple
+ * worker instances are running in parallel, each job is delivered to exactly ONE
+ * worker. This is the foundational guarantee that makes horizontal scaling safe.
+ *
+ * Additional safety layers:
+ *   1. Idempotency check (Postgres) — prevents duplicate reviews if the same
+ *      webhook event is enqueued more than once.
+ *   2. lockDuration (60s) — if a worker crashes mid-job, the lock expires and
+ *      BullMQ reassigns the job to another healthy worker.
+ *   3. stalledInterval (30s) — BullMQ actively checks for stalled jobs (ones
+ *      whose workers stopped sending heartbeats) and moves them back to waiting.
+ */
+const prWorker = new Worker('pr-review-queue', async (job: Job) => {
   const { pullRequestNumber, repositoryFullName, headSha, title: prTitle } = job.data as any;
   const [owner, repo] = (repositoryFullName as string).split('/');
   const number = pullRequestNumber as number;
@@ -55,6 +94,14 @@ const prWorker = new Worker('pr-review-queue', async (job) => {
   let jobStatus: 'success' | 'failed' | 'circuit_open' = 'success';
 
   try {
+    // ── Idempotency gate: skip if this headSha is already reviewed ────────
+    if (await isAlreadyReviewed(repositoryFullName, number, headSha)) {
+      console.info(
+        `[Worker] Idempotent skip: PR #${number} @ ${headSha} already reviewed. Job ${job.id} marked complete.`,
+      );
+      return; // BullMQ marks completed; no duplicate GitHub comments
+    }
+
     // ── Step 1: Fetch the PR Diff from GitHub ─────────────────────────────
     console.log(`[Worker] Fetching diff for ${owner}/${repo}#${number}...`);
     
@@ -235,7 +282,25 @@ ${safeDiff}
     reviewJobDuration.observe(durationInSeconds);
     reviewJobsProcessed.inc({ status: jobStatus });
   }
-}, { connection });
+}, {
+  connection,
+  // ── Horizontal scaling: BullMQ tuning ─────────────────────────────────────
+  // concurrency: number of parallel jobs this single worker instance will pick
+  // up. Each instance runs CONCURRENCY jobs simultaneously. Scaling out is done
+  // by running N instances × CONCURRENCY = total parallel capacity.
+  concurrency: CONCURRENCY,
+
+  // lockDuration: how long (ms) a job is locked to this worker. If the worker
+  // crashes or freezes, the lock expires and BullMQ moves the job back to
+  // "waiting" so another instance picks it up. Set to 60s because Gemini API
+  // calls can take 15s + GitHub API calls + Prisma writes.
+  lockDuration: 60_000,
+
+  // stalledInterval: how often (ms) this worker checks for stalled jobs — jobs
+  // whose owning worker stopped sending lock-renewal heartbeats. 30s provides
+  // a good balance between detection speed and Redis load.
+  stalledInterval: 30_000,
+});
 
 // ── Worker event listeners ────────────────────────────────────────────────────
 
@@ -244,15 +309,46 @@ prWorker.on('failed', (job, err) => {
 });
 
 prWorker.on('stalled', (jobId) => {
-  console.warn(`[Worker] Job ${jobId} stalled!`);
+  console.warn(`[Worker] Job ${jobId} stalled — will be retried by this or another worker instance.`);
 });
 
-// ── Graceful shutdown ─────────────────────────────────────────────────────────
+// ── Graceful shutdown with drain ──────────────────────────────────────────────
+// On SIGTERM (Render/k8s sends this before killing the process):
+// 1. Stop accepting new jobs immediately.
+// 2. Wait up to 30s for in-flight jobs to finish.
+// 3. If jobs are still running after 30s, force-exit so the container isn't
+//    killed by SIGKILL (which would leave jobs in a stalled state).
+
+const DRAIN_TIMEOUT_MS = 30_000;
+let isShuttingDown = false;
 
 const shutdown = async (signal: string): Promise<void> => {
-  console.info(`\n[Worker] Received ${signal} — closing gracefully...`);
-  await prWorker.close();
-  await prisma.$disconnect();
+  if (isShuttingDown) return; // Prevent double-shutdown from SIGTERM + SIGINT
+  isShuttingDown = true;
+
+  console.info(`\n[Worker] Received ${signal} — draining in-flight jobs (${DRAIN_TIMEOUT_MS / 1000}s timeout)...`);
+
+  // Force-exit timer — safety net if Worker.close() hangs
+  const forceExitTimer = setTimeout(() => {
+    console.error('[Worker] Drain timeout exceeded — forcing exit.');
+    process.exit(1);
+  }, DRAIN_TIMEOUT_MS);
+  // Don't let this timer keep the process alive if everything else finishes
+  forceExitTimer.unref();
+
+  try {
+    // Worker.close() stops picking new jobs and waits for running jobs to finish
+    await prWorker.close();
+    console.info('[Worker] All in-flight jobs drained.');
+  } catch (err) {
+    console.error('[Worker] Error during worker drain:', err);
+  }
+
+  try {
+    await prisma.$disconnect();
+  } catch (_) { /* best-effort */ }
+
+  clearTimeout(forceExitTimer);
   console.info('[Worker] Shutdown complete.');
   process.exit(0);
 };
@@ -268,9 +364,13 @@ const port = process.env.PORT ? Number(process.env.PORT) : 10000;
 
 const server = http.createServer((_req, res) => {
   res.writeHead(200);
-  res.end('Worker is alive and processing queue jobs!');
+  res.end(JSON.stringify({
+    status: 'healthy',
+    concurrency: CONCURRENCY,
+    shuttingDown: isShuttingDown,
+  }));
 });
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`[Worker] Dummy web server listening on port ${port}`);
+  console.log(`[Worker] Health-check server listening on port ${port}`);
 });
