@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null);
       setAuthToken(null);
     } catch {
-      console.error('Logout failed', err);
+      console.error('Logout failed');
     }
   };
 
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api.post(`/auth/consent`);
       setUser(prev => prev ? { ...prev, privacyAccepted: true } : null);
     } catch {
-      console.error('Failed to accept privacy', err);
+      console.error('Failed to accept privacy');
     }
   };
 
