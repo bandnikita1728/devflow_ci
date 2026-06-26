@@ -193,49 +193,12 @@ router.post('/repos', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const installationOctokit = (await app.getInstallationOctokit(installationId)) as unknown as Octokit;
-
-    // Create webhook
-    const webhookUrl = process.env.WEBHOOK_URL || 'https://your-ngrok-url/webhooks/github';
-    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET || process.env.GITHUB_SECRET;
-
-    let hookId: string;
-    try {
-      const hook = await installationOctokit.repos.createWebhook({
-        owner,
-        repo,
-        name: 'web',
-        active: true,
-        events: ['pull_request'],
-        config: {
-          url: webhookUrl,
-          content_type: 'json',
-          secret: webhookSecret,
-        }
-      });
-      hookId = hook.data.id.toString();
-    } catch (err: any) {
-      if (err.status === 422) {
-        // Webhook already exists on this repo (e.g. from an earlier connection attempt) — reuse it instead of failing
-        const { data: hooks } = await installationOctokit.repos.listWebhooks({ owner, repo });
-        const existingHook = hooks.find((h: any) => h.config?.url === webhookUrl) || hooks[0];
-        if (!existingHook) {
-          res.status(422).json({ error: 'Webhook registration failed: Webhook already exists but could not be retrieved.' });
-          return;
-        }
-        hookId = existingHook.id.toString();
-      } else {
-        res.status(422).json({ error: `Webhook registration failed: ${err.message}` });
-        return;
-      }
-    }
-
     const newRepo = await prisma.repository.create({
       data: {
         userId,
         githubRepoId: ghRepo.data.id.toString(),
         fullName: repoFullName,
-        webhookId: hookId,
+        webhookId: null,
         installationId,
         isActive: true,
       }
@@ -265,33 +228,6 @@ router.delete('/repos/:id', async (req: Request, res: Response): Promise<void> =
     if (!repository) {
       res.status(404).json({ error: 'Repository not found' });
       return;
-    }
-
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.encryptedToken) {
-      res.status(401).json({ error: 'User token missing' });
-      return;
-    }
-
-    const token = decryptToken(user.encryptedToken);
-    const octokit = new Octokit({ auth: token });
-    const [owner, repo] = repository.fullName.split('/');
-
-    if (repository.webhookId) {
-      try {
-        const instOctokit = repository.installationId
-          ? ((await app.getInstallationOctokit(repository.installationId)) as unknown as Octokit)
-          : octokit;
-        await instOctokit.repos.deleteWebhook({
-          owner,
-          repo,
-          hook_id: parseInt(repository.webhookId, 10)
-        });
-      } catch (err: any) {
-        if (err.status !== 404) { // Ignore if webhook was already deleted manually
-          throw err;
-        }
-      }
     }
 
     await prisma.repository.delete({
