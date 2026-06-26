@@ -1,0 +1,223 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# DevFlow CI — Deploy to Render
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Triggers ONLY on push to main, and ONLY after the CI workflow passes.
+# Uses workflow_run to create a hard dependency — if CI fails, deploy
+# never fires.
+#
+# Each Render service has a deploy hook URL stored as a GitHub Secret.
+# Deploy hooks are idempotent — Render deduplicates rapid triggers.
+#
+# SECURITY:
+#   - Deploy hook URLs are secrets (contain auth tokens)
+#   - All actions pinned to full SHA
+#   - permissions: deployments: write needed only for the notify job
+#
+# FAILURE HANDLING:
+#   - curl --retry 3 --retry-delay 10 handles flaky Render 503s
+#   - --fail ensures non-2xx responses are treated as errors
+#   - Each deploy job verifies the hook secret exists before calling
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Gate: Only deploy if CI passed on main
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # workflow_run fires on both success AND failure. We must explicitly
+  # check the conclusion. Without this gate, a failing CI would still
+  # trigger deploy jobs (which would pass their own steps and deploy
+  # broken code).
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # ── Deploy API Gateway ──────────────────────────────────────────────────────
+  deploy-backend:
+    name: Deploy API Gateway to Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Verify deploy hook secret exists
+        run: |
+          if [ -z "${{ secrets.RENDER_API_GATEWAY_HOOK }}" ]; then
+            echo "::error::RENDER_API_GATEWAY_HOOK secret is not set. Configure it in Settings > Secrets."
+            exit 1
+          fi
+
+      - name: Trigger Render deploy — API Gateway
+        run: |
+          echo "🚀 Triggering API Gateway deployment..."
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 10 \
+            --retry-all-errors \
+            --max-time 30 \
+            "${{ secrets.RENDER_API_GATEWAY_HOOK }}"
+          echo ""
+          echo "✅ API Gateway deploy hook triggered successfully"
+
+  # ── Deploy Worker ───────────────────────────────────────────────────────────
+  deploy-worker:
+    name: Deploy Worker to Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Verify deploy hook secret exists
+        run: |
+          if [ -z "${{ secrets.RENDER_WORKER_HOOK }}" ]; then
+            echo "::error::RENDER_WORKER_HOOK secret is not set. Configure it in Settings > Secrets."
+            exit 1
+          fi
+
+      - name: Trigger Render deploy — Worker
+        run: |
+          echo "🚀 Triggering Worker deployment..."
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 10 \
+            --retry-all-errors \
+            --max-time 30 \
+            "${{ secrets.RENDER_WORKER_HOOK }}"
+          echo ""
+          echo "✅ Worker deploy hook triggered successfully"
+
+  # ── Deploy Dashboard ────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy Dashboard to Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Verify deploy hook secret exists
+        run: |
+          if [ -z "${{ secrets.RENDER_DASHBOARD_HOOK }}" ]; then
+            echo "::error::RENDER_DASHBOARD_HOOK secret is not set. Configure it in Settings > Secrets."
+            exit 1
+          fi
+
+      - name: Trigger Render deploy — Dashboard
+        run: |
+          echo "🚀 Triggering Dashboard deployment..."
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 10 \
+            --retry-all-errors \
+            --max-time 30 \
+            "${{ secrets.RENDER_DASHBOARD_HOOK }}"
+          echo ""
+          echo "✅ Dashboard deploy hook triggered successfully"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Notify: Post GitHub deployment status
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # Runs after all three deploy jobs (regardless of outcome).
+  # Posts a GitHub deployment status so the commit shows ✅ or ❌ in the UI.
+  #
+  # Needs elevated permissions: deployments: write and statuses: write.
+  # ═══════════════════════════════════════════════════════════════════════════
+  notify:
+    name: Post Deployment Status
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [deploy-backend, deploy-worker, deploy-frontend]
+    if: always()
+
+    permissions:
+      contents: read
+      deployments: write
+      statuses: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Determine deployment outcome
+        id: outcome
+        run: |
+          # Check if ALL deploy jobs succeeded
+          if [[ "${{ needs.deploy-backend.result }}" == "success" && \
+                "${{ needs.deploy-worker.result }}" == "success" && \
+                "${{ needs.deploy-frontend.result }}" == "success" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "description=All services deployed to Render successfully" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "description=Deployment failed — backend:${{ needs.deploy-backend.result }}, worker:${{ needs.deploy-worker.result }}, frontend:${{ needs.deploy-frontend.result }}" >> $GITHUB_OUTPUT
+          fi
+
+      # Create a GitHub deployment + deployment status.
+      # This makes the deployment visible in the repo's "Environments" tab
+      # and shows a status badge on the commit.
+      - name: Create GitHub deployment status
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const sha = context.payload.workflow_run?.head_sha || context.sha;
+
+            // Create the deployment record
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: sha,
+              environment: 'production',
+              description: 'Render deployment triggered by CI pipeline',
+              auto_merge: false,
+              required_contexts: [],  // We already gated on CI passing
+              transient_environment: false,
+              production_environment: true,
+            });
+
+            // GitHub may return 202 (merge conflict) or 409 (already exists) —
+            // only proceed if we got a 201 with a valid deployment ID.
+            if (deployment.status === 201) {
+              await github.rest.repos.createDeploymentStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                deployment_id: deployment.data.id,
+                state: '${{ steps.outcome.outputs.status }}',
+                description: '${{ steps.outcome.outputs.description }}',
+                environment_url: 'https://devflow-ci-dashboard.onrender.com',
+                log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              });
+              console.log(`✅ Deployment status posted: ${{ steps.outcome.outputs.status }}`);
+            } else {
+              console.log(`⚠️  Deployment creation returned status ${deployment.status} — skipping status update`);
+            }
+
+      - name: Print deployment summary
+        if: always()
+        run: |
+          echo "═══════════════════════════════════════════"
+          echo "  DevFlow CI — Deployment Summary"
+          echo "═══════════════════════════════════════════"
+          echo "  API Gateway: ${{ needs.deploy-backend.result }}"
+          echo "  Worker:      ${{ needs.deploy-worker.result }}"
+          echo "  Dashboard:   ${{ needs.deploy-frontend.result }}"
+          echo "  Overall:     ${{ steps.outcome.outputs.status }}"
+          echo "═══════════════════════════════════════════"

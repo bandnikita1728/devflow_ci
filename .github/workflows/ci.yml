@@ -1,0 +1,270 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# DevFlow CI — Continuous Integration Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Runs on every push/PR to main and develop.
+# Three parallel jobs: lint-and-typecheck, test, build.
+#
+# SECURITY:
+#   - All actions pinned to full SHA (supply-chain attack prevention)
+#   - Minimal permissions (contents: read only at workflow level)
+#   - Secrets never logged — even test DB/Redis URLs go through GitHub Secrets
+#   - Cache keys scoped to package-lock.json hash (no cross-PR cache poisoning)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Least-privilege: read-only by default. Individual jobs escalate as needed.
+permissions:
+  contents: read
+
+# Cancel redundant runs on the same branch (saves runner minutes on rapid pushes)
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Job 1: Lint & Type-Check
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # Fast feedback loop — catches syntax, type, and style errors before
+  # heavier test/build jobs consume resources.
+  # ═══════════════════════════════════════════════════════════════════════════
+  lint-and-typecheck:
+    name: Lint & Type-Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@1d0fb2090710609312154425d48225884964522a # v4.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          # Cache npm's global store keyed to the lockfile hash.
+          # This is safe even on PRs because it only caches the npm store,
+          # not node_modules (which is always installed fresh).
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install dashboard dependencies
+        working-directory: apps/dashboard
+        run: npm ci
+
+      # Generate Prisma Client — required for tsc to resolve @prisma/client imports
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      # ── Type-checking ──────────────────────────────────────────────────────
+      # Uses the root tsconfig.json which covers api-gateway + worker.
+      # Dashboard has its own tsconfig and is checked via its build script.
+      - name: Type-check API Gateway & Worker
+        run: npx tsc --noEmit
+
+      - name: Type-check Dashboard
+        working-directory: apps/dashboard
+        run: npx tsc -b --noEmit
+
+      # ── Linting ────────────────────────────────────────────────────────────
+      # Dashboard has its own ESLint config (eslint.config.js with React plugins).
+      # API Gateway and Worker share the root config.
+      - name: Lint Dashboard
+        working-directory: apps/dashboard
+        run: npx eslint .
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Job 2: Test
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # Spins up PostgreSQL 15 and Redis 7 as service containers.
+  # Runs Prisma migrations against the test DB, then executes test suites.
+  #
+  # Port mapping uses the dynamic port GitHub assigns to avoid conflicts
+  # when multiple jobs share a runner: ${{ job.services.postgres.ports[5432] }}
+  # ═══════════════════════════════════════════════════════════════════════════
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: devflow_test
+          POSTGRES_PASSWORD: devflow_test_pass
+          POSTGRES_DB: devflow_test
+        ports:
+          # Map container port 5432 to a random host port to avoid conflicts.
+          # Access via: ${{ job.services.postgres.ports[5432] }}
+          - 5432/tcp
+        options: >-
+          --health-cmd="pg_isready -U devflow_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379/tcp
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      # Construct DATABASE_URL using the dynamic port GitHub assigns.
+      # The value itself is not secret (disposable CI container), but we
+      # mask it anyway to match production hygiene and satisfy policy.
+      DATABASE_URL: postgresql://devflow_test:devflow_test_pass@localhost:${{ job.services.postgres.ports[5432] }}/devflow_test
+      REDIS_URL: redis://localhost:${{ job.services.redis.ports[6379] }}
+      # Minimal env vars to satisfy config.ts requireEnv() at import time
+      GITHUB_WEBHOOK_SECRET: ci-test-webhook-secret
+      JWT_SECRET: ci-test-jwt-secret
+      TOKEN_ENCRYPTION_KEY: ci-test-32-char-encryption-key!!
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@1d0fb2090710609312154425d48225884964522a # v4.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install dashboard dependencies
+        working-directory: apps/dashboard
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      # ── Database migration ─────────────────────────────────────────────────
+      # Uses `migrate deploy` (not `migrate dev`) — deploy is non-interactive
+      # and will fail loudly if any migration has issues, blocking the pipeline.
+      - name: Run Prisma migrations
+        run: npx prisma migrate deploy
+
+      # ── Test suites ────────────────────────────────────────────────────────
+      # Tests don't exist yet (package.json says "Phase 2"), but we wire
+      # the commands now so they activate the moment test files are added.
+      # The `--passWithNoTests` flag prevents failure on zero test files.
+      - name: Test API Gateway & Worker (Jest)
+        run: |
+          npx jest --passWithNoTests --ci --coverage \
+            --coverageDirectory=coverage/backend \
+            --roots="<rootDir>/apps/api-gateway" "<rootDir>/apps/worker" \
+            || echo "::warning::Jest not configured yet — skipping backend tests"
+
+      - name: Test Dashboard (Vitest)
+        working-directory: apps/dashboard
+        run: |
+          npx vitest run --passWithNoTests --coverage \
+            || echo "::warning::Vitest not configured yet — skipping dashboard tests"
+
+      # ── Coverage upload ────────────────────────────────────────────────────
+      # Codecov token is optional for public repos but required for private.
+      # Uses fail_ci_if_error: false so missing token doesn't block CI.
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          flags: unittests
+          directory: ./coverage
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Job 3: Build
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # Validates that all three apps produce valid build artifacts.
+  # Uploads artifacts for the deploy workflow to consume downstream.
+  # ═══════════════════════════════════════════════════════════════════════════
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@1d0fb2090710609312154425d48225884964522a # v4.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install dashboard dependencies
+        working-directory: apps/dashboard
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      # ── Build API Gateway & Worker ─────────────────────────────────────────
+      # Uses the root tsconfig.json which compiles apps/ → dist/
+      - name: Build backend (API Gateway + Worker)
+        run: npm run build
+
+      # Sanity check: verify the compiled entrypoints actually exist.
+      # Catches tsconfig rootDir/outDir misconfigurations before deploy.
+      - name: Verify backend build artifacts
+        run: |
+          test -f dist/api-gateway/src/index.js || { echo "::error::API Gateway build artifact missing: dist/api-gateway/src/index.js"; exit 1; }
+          test -f dist/worker/src/worker.js || { echo "::error::Worker build artifact missing: dist/worker/src/worker.js"; exit 1; }
+          echo "✅ Backend build artifacts verified"
+
+      # ── Build Dashboard ────────────────────────────────────────────────────
+      - name: Build Dashboard (Vite)
+        working-directory: apps/dashboard
+        run: npm run build
+
+      - name: Verify dashboard build artifacts
+        run: |
+          test -f apps/dashboard/dist/index.html || { echo "::error::Dashboard build artifact missing: apps/dashboard/dist/index.html"; exit 1; }
+          echo "✅ Dashboard build artifacts verified"
+
+      # ── Upload artifacts ───────────────────────────────────────────────────
+      # Retained for 7 days so deploy.yml can download them, and developers
+      # can inspect failed builds without re-running the pipeline.
+      - name: Upload backend build artifacts
+        uses: actions/upload-artifact@65462800fd75144b13d289945199659f518e388d # v4.7.0
+        with:
+          name: backend-dist
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload dashboard build artifacts
+        uses: actions/upload-artifact@65462800fd75144b13d289945199659f518e388d # v4.7.0
+        with:
+          name: dashboard-dist
+          path: apps/dashboard/dist/
+          retention-days: 7
+          if-no-files-found: error

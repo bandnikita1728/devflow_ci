@@ -1,0 +1,31 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CODEOWNERS — DevFlow CI
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Defines code review requirements for critical paths.
+# GitHub will automatically request reviews from the listed owners
+# when a PR touches matching files.
+#
+# Syntax: <pattern>  <owner1> <owner2> ...
+# Owners can be GitHub usernames (@user) or team names (@org/team).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── CI/CD Pipeline ────────────────────────────────────────────────────────────
+# All workflow changes require review — prevents accidental secret exposure,
+# permission escalation, or pipeline breakage from unreviewed changes.
+.github/                        @bandnikita1728
+.github/workflows/              @bandnikita1728
+
+# ── Infrastructure & Deployment ───────────────────────────────────────────────
+render.yaml                     @bandnikita1728
+docker-compose.yml              @bandnikita1728
+Dockerfile*                     @bandnikita1728
+
+# ── Database Schema ───────────────────────────────────────────────────────────
+# Schema changes can cause data loss if migrations are wrong. Require review.
+prisma/                         @bandnikita1728
+
+# ── Security-Sensitive Files ──────────────────────────────────────────────────
+.env.example                    @bandnikita1728
+apps/api-gateway/src/middleware/ @bandnikita1728
+apps/api-gateway/src/routes/auth.ts @bandnikita1728
