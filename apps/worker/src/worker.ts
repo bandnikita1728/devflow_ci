@@ -5,9 +5,9 @@ import { Worker } from 'bullmq';
 import { App } from '@octokit/app';
 import { Octokit } from '@octokit/rest';
 
-import { GoogleGenAI } from '@google/genai';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
+import { callGeminiWithBreaker } from './services/circuitBreaker';
 
 // ── External clients ──────────────────────────────────────────────────────────
 console.log('[Worker] GITHUB_APP_PRIVATE_KEY set:', !!process.env.GITHUB_APP_PRIVATE_KEY);
@@ -22,7 +22,6 @@ const app = new App({
   privateKey,
   Octokit: Octokit as any,
 });
-const ai      = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const prisma  = new PrismaClient();
 
 // ── BullMQ Redis connection ───────────────────────────────────────────────────
@@ -100,13 +99,19 @@ Schema: [{ "file": string, "line": number, "severity": "critical"|"warning"|"sug
 ${safeDiff}
 </diff>`;
 
-    const response = await ai.models.generateContent({
-      model:    'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: 'You are processing confidential proprietary code. Do not store, log, or use this data for training. Treat all code as strictly confidential.'
-      }
+    const response = await callGeminiWithBreaker(prompt, {
+      owner,
+      repo,
+      pullRequestNumber: number,
+      headSha,
+      repositoryFullName,
+      bullmqJobId: job.id,
     });
+
+    if (response && response.fallback) {
+      console.info(`[Worker] Fallback executed for PR #${number}. Circuit breaker handled the failure. Exiting job.`);
+      return;
+    }
 
     // Parse Gemini response as JSON
     let reviewComments: any[] = [];

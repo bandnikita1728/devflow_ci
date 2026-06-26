@@ -34,6 +34,7 @@ import webhookRoutes from './routes/webhooks';
 import apiRoutes from './routes/api';
 import authRoutes from './routes/auth';
 import { requireAuth } from './middleware/requireAuth';
+import { internalOnly } from './middleware/internalOnly';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -107,6 +108,37 @@ app.get('/health', (_req: Request, res: Response): void => {
     timestamp: new Date().toISOString(),
     uptime:    `${Math.floor(process.uptime())}s`,
   });
+});
+
+/**
+ * GET /health/circuit
+ * Internal health check to retrieve the current state and stats of the Gemini AI circuit breaker.
+ */
+app.get('/health/circuit', internalOnly, async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const redis = getRedisClient();
+    const data = await redis.get('circuit:gemini:status');
+    if (!data) {
+      res.status(200).json({
+        state: 'closed',
+        stats: {
+          fires: 0,
+          failures: 0,
+          successes: 0,
+          timeouts: 0,
+        },
+      });
+      return;
+    }
+    const parsed = JSON.parse(data);
+    res.status(200).json({
+      state: parsed.state,
+      stats: parsed.stats,
+    });
+  } catch (error: any) {
+    console.error('[API-Gateway:CircuitHealth] Error reading circuit status:', error.message);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
 });
 
 // ── Routes ────────────────────────────────────────────────────────────────────

@@ -10,7 +10,7 @@
     "start": "node dist/api-gateway/src/index.js",
     "start:worker": "node dist/worker/src/worker.js",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"No tests yet — Phase 2\" && exit 0"
+    "test": "jest"
   },
   "keywords": [
     "ci",
@@ -34,17 +34,22 @@
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
     "ioredis": "^5.11.1",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "opossum": "^10.0.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/crypto-js": "^4.2.2",
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.9.3",
+    "@types/opossum": "^8.1.9",
+    "jest": "^30.4.2",
     "nodemon": "^3.1.14",
     "prisma": "^6.19.3",
+    "ts-jest": "^29.4.11",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
   }
