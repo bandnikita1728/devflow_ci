@@ -92,9 +92,6 @@ jobs:
   #
   # Spins up PostgreSQL 15 and Redis 7 as service containers.
   # Runs Prisma migrations against the test DB, then executes test suites.
-  #
-  # Port mapping uses the dynamic port GitHub assigns to avoid conflicts
-  # when multiple jobs share a runner: ${{ job.services.postgres.ports[5432] }}
   # ═══════════════════════════════════════════════════════════════════════════
   test:
     name: Test
@@ -109,9 +106,7 @@ jobs:
           POSTGRES_PASSWORD: devflow_test_pass
           POSTGRES_DB: devflow_test
         ports:
-          # Map container port 5432 to a random host port to avoid conflicts.
-          # Access via: ${{ job.services.postgres.ports[5432] }}
-          - 5432/tcp
+          - 5432:5432
         options: >-
           --health-cmd="pg_isready -U devflow_test"
           --health-interval=10s
@@ -121,7 +116,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 6379/tcp
+          - 6379:6379
         options: >-
           --health-cmd="redis-cli ping"
           --health-interval=10s
@@ -129,11 +124,8 @@ jobs:
           --health-retries=5
 
     env:
-      # Construct DATABASE_URL using the dynamic port GitHub assigns.
-      # The value itself is not secret (disposable CI container), but we
-      # mask it anyway to match production hygiene and satisfy policy.
-      DATABASE_URL: postgresql://devflow_test:devflow_test_pass@localhost:${{ job.services.postgres.ports[5432] }}/devflow_test
-      REDIS_URL: redis://localhost:${{ job.services.redis.ports[6379] }}
+      DATABASE_URL: postgresql://devflow_test:devflow_test_pass@localhost:5432/devflow_test
+      REDIS_URL: redis://localhost:6379
       # Minimal env vars to satisfy config.ts requireEnv() at import time
       GITHUB_WEBHOOK_SECRET: ci-test-webhook-secret
       JWT_SECRET: ci-test-jwt-secret
