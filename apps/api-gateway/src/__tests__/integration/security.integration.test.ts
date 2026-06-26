@@ -8,6 +8,55 @@
  *   4. SQL injection in PR title is safely stored as literal by Prisma/PostgreSQL.
  */
 
+// Mock Redis using ioredis-mock to prevent real connections
+jest.mock('ioredis', () => require('ioredis-mock'));
+
+// Mock @octokit/app to prevent real GitHub App token signing/asymmetric key requirements
+const mockRequest = jest.fn().mockResolvedValue({ data: { id: 100 } });
+const mockCreateComment = jest.fn();
+const mockGetInstallationOctokit = jest.fn().mockResolvedValue({
+  issues: {
+    createComment: mockCreateComment,
+  },
+});
+
+jest.mock('@octokit/app', () => {
+  return {
+    App: jest.fn().mockImplementation(() => {
+      return {
+        octokit: { request: mockRequest },
+        getInstallationOctokit: mockGetInstallationOctokit,
+      };
+    }),
+  };
+});
+
+// Mock @prisma/client conditionally: return mock for default/fallback, real for custom config
+const mockUpsert = jest.fn().mockResolvedValue({ id: 1 });
+const mockCreate = jest.fn().mockResolvedValue({ id: 2 });
+const mockPrismaClientInstance = {
+  pullRequest: {
+    upsert: mockUpsert,
+  },
+  reviewJob: {
+    create: mockCreate,
+  },
+  $disconnect: jest.fn().mockResolvedValue(undefined),
+};
+
+jest.mock('@prisma/client', () => {
+  const actual = jest.requireActual('@prisma/client');
+  return {
+    ...actual,
+    PrismaClient: jest.fn().mockImplementation((config) => {
+      if (!config || !config.datasources) {
+        return mockPrismaClientInstance;
+      }
+      return new actual.PrismaClient(config);
+    }),
+  };
+});
+
 import http from 'node:http';
 import supertest from 'supertest';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
@@ -125,27 +174,6 @@ describe('Security Integration Tests', () => {
 
   // ── 2. Circuit breaker fallback comment body contains NO leaks ─────────────
   test('Circuit breaker fallback comment body must not contain error stack trace or secrets', async () => {
-    const mockRequest = jest.fn().mockResolvedValue({ data: { id: 100 } });
-    const mockCreateComment = jest.fn();
-    const mockGetInstallationOctokit = jest.fn().mockResolvedValue({
-      issues: {
-        createComment: mockCreateComment,
-      },
-    });
-
-    // We override the local GITHUB APP instance or mock dependencies
-    // To make sure it triggers our mockOctokit without real credentials:
-    jest.mock('@octokit/app', () => {
-      return {
-        App: jest.fn().mockImplementation(() => {
-          return {
-            octokit: { request: mockRequest },
-            getInstallationOctokit: mockGetInstallationOctokit,
-          };
-        }),
-      };
-    });
-
     const context = {
       owner: 'test-owner',
       repo: 'test-repo',
@@ -160,13 +188,12 @@ describe('Security Integration Tests', () => {
     await executeFallback('prompt', context, scaryError);
 
     // Assert that if the comment is posted, it does NOT leak the database path, API key, or file name
-    if (mockCreateComment.mock.calls.length > 0) {
-      const commentBody = mockCreateComment.mock.calls[0][0].body;
-      expect(commentBody).toBe('DevFlow CI: AI review temporarily unavailable. Please retry or review manually.');
-      expect(commentBody).not.toContain('Secret: key-12345-api-key');
-      expect(commentBody).not.toContain('devflow_ci');
-      expect(commentBody).not.toContain('db.ts');
-    }
+    expect(mockCreateComment).toHaveBeenCalled();
+    const commentBody = mockCreateComment.mock.calls[0][0].body;
+    expect(commentBody).toBe('DevFlow CI: AI review temporarily unavailable. Please retry or review manually.');
+    expect(commentBody).not.toContain('Secret: key-12345-api-key');
+    expect(commentBody).not.toContain('devflow_ci');
+    expect(commentBody).not.toContain('db.ts');
   });
 
   // ── 3. Webhook 401 response body has no internal leakage ───────────────────

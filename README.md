@@ -1,5 +1,8 @@
 # DevFlow CI
 
+![CI](https://github.com/bandnikita1728/devflow-ci/actions/workflows/ci.yml/badge.svg)
+![Deploy](https://github.com/bandnikita1728/devflow-ci/actions/workflows/deploy.yml/badge.svg)
+
 > Automated AI code reviewer that catches security vulnerabilities, bugs, and style issues — posting inline GitHub PR comments in under 60 seconds.
 
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -41,6 +44,8 @@
 - 🗄️ **Full persistence** with PostgreSQL via Prisma
 - ⚡ **Async processing** with BullMQ + Redis — handles traffic spikes without dropping webhook events
 - 🔏 **Privacy**: consent banner, account deletion, Gemini data opt-out
+- 📈 Grafana Cloud monitoring — tracks queue depth, latency, circuit breaker state, and review failure rate with alerting
+- 🧠 Structured OWASP reviews — every finding includes severity, explanation, OWASP Top 10 reference, and an AI-generated secure code fix with disclaimer
 
 ## 🛠️ Tech Stack
 
@@ -53,6 +58,7 @@
 | Google Gemini AI | Axios |
 | GitHub App SDK | Shadcn/ui components |
 | JWT + HttpOnly cookies | |
+| Prometheus + Grafana  | Metrics, alerting, and observability                |
 
 ## 🏗️ Architecture
 
@@ -102,6 +108,30 @@
                     └──────────────────────────┘
 ```
 
+```mermaid
+   sequenceDiagram
+     participant Dev as Developer
+     participant GH as GitHub
+     participant GW as API Gateway
+     participant Q as Redis / BullMQ
+     participant W as Worker
+     participant AI as Gemini 2.5 Flash
+     participant DB as PostgreSQL
+
+     Dev->>GH: Opens Pull Request
+     GH->>GW: POST /webhooks/github (HMAC signed)
+     GW->>GW: Validate HMAC + Redis NX idempotency
+     GW->>Q: Enqueue pr-review job
+     GW-->>GH: 202 Accepted
+     Q->>W: Deliver job
+     W->>GH: Fetch raw diff
+     W->>W: Filter files >50KB, wrap in XML boundary
+     W->>AI: Send prompt (structured JSON schema)
+     AI-->>W: JSON array of findings
+     W->>GH: Post inline comments (severity + OWASP + fix)
+     W->>DB: Persist review record
+```
+
 ### Request Flow
 
 1. Dev opens a Pull Request on GitHub
@@ -140,7 +170,7 @@
 1. **Clone the repository**
    ```bash
    git clone https://github.com/bandnikita1728/devflow-ci.git
-   cd devflow-ci
+   git checkout main
    ```
 
 2. **Install dependencies**
@@ -196,6 +226,9 @@
 | `GEMINI_API_KEY` | Google Gemini AI API key |
 | `WEBHOOK_URL` | Your public webhook URL (e.g. ngrok) |
 | `FRONTEND_URL` | URL of the frontend dashboard |
+| `METRICS_SECRET`        | Bearer token to access /metrics endpoint            |
+| `INTERNAL_API_SECRET`   | Header secret for internal-only endpoints           |
+| `WORKER_CONCURRENCY`    | Number of concurrent jobs per worker instance       |
 
 ## 🧠 How It Works
 
@@ -243,15 +276,17 @@ devflow_ci/
 - [x] Privacy policy + account deletion
 - [x] Deployed to Render
 
-### 🚧 Version 2 (In Progress)
-- [ ] GitHub Actions CI/CD pipeline — auto-deploy on push
-- [ ] Circuit breaker (opossum) — graceful Gemini failure handling
-- [ ] Separate Redis instances — queue vs cache isolation
-- [ ] Per-user API rate limiting
-- [ ] Token budget enforcement before AI call
-- [ ] Grafana Cloud monitoring + alerting
-- [ ] Webhook retry visibility in dashboard
-- [ ] Horizontal worker scaling
+### ✅ Version 2 (Shipped)
+- [x] GitHub Actions CI/CD pipeline
+- [x] Circuit breaker (opossum) — graceful Gemini failure handling
+- [x] Separate Redis instances — queue vs cache isolation
+- [x] Per-user API rate limiting
+- [x] Token budget enforcement before AI call
+- [x] Grafana Cloud monitoring + alerting
+- [x] Webhook retry visibility in dashboard
+- [x] Horizontal worker scaling
+
+#### ✅ AI Review Explanation — OWASP-linked structured comments with severity, explanation, and secure code fix
 
 ### 🔮 Future
 - [ ] OpenAI and Claude model support alongside Gemini

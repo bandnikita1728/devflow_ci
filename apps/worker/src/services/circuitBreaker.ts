@@ -86,7 +86,17 @@ function sanitizeError(err: any): string {
   }
   // Redact model names to prevent internal details leak
   message = message.replace(/gemini-[a-zA-Z0-9.-]+/gi, '[REDACTED_MODEL]');
-  return message;
+  // Redact any secret/key/password/token values that may appear in error messages
+  message = message.replace(/secret[^\s]*/gi, '[REDACTED]');
+  message = message.replace(/key[^\s]*/gi, '[REDACTED]');
+  message = message.replace(/password[^\s]*/gi, '[REDACTED]');
+  message = message.replace(/token[^\s]*/gi, '[REDACTED]');
+  // Strip internal file paths (Unix and Windows)
+  message = message.replace(/at\s+\/.+\.ts:\d+/g, '');
+  message = message.replace(/at\s+\/.+\.js:\d+/g, '');
+  message = message.replace(/at\s+[A-Z]:\\.+\.ts:\d+/g, '');
+  message = message.replace(/at\s+[A-Z]:\\.+\.js:\d+/g, '');
+  return message.trim();
 }
 
 // ── Opossum Circuit Breaker Instance ─────────────────────────────────────────
