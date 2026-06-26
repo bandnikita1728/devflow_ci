@@ -147,7 +147,8 @@ router.get('/repos', async (req: Request, res: Response) => {
 router.post('/repos', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { repoFullName } = req.body;
+    const { repoFullName: rawName } = req.body;
+    const repoFullName = rawName?.trim();
     
     if (!repoFullName || !repoFullName.includes('/')) {
       res.status(400).json({ error: 'Invalid repository name format' });
