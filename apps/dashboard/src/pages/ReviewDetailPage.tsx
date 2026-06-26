@@ -112,28 +112,92 @@ export function ReviewDetailPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {comments.map((comment) => (
-                <div key={comment.id} className="rounded-md border border-gh-border bg-gh-card overflow-hidden">
-                  <div className="bg-gh-sidebar px-4 py-2 border-b border-gh-border flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gh-text-primary text-sm">DevFlow AI</span>
-                      <span className="text-gh-text-secondary text-[13px]">
-                        commented {timeAgo(comment.createdAt)}
-                      </span>
+              {comments.map((comment) => {
+                const owaspUrl = comment.owaspUrl;
+                const isValidOwaspUrl = owaspUrl && owaspUrl.startsWith('https://owasp.org/');
+
+                return (
+                  <div key={comment.id} className="rounded-md border border-gh-border bg-gh-card overflow-hidden">
+                    <div className="bg-gh-sidebar px-4 py-2 border-b border-gh-border flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gh-text-primary text-sm">
+                          {comment.title || 'DevFlow AI Review'}
+                        </span>
+                        <span className="text-gh-text-secondary text-[13px]">
+                          commented {timeAgo(comment.createdAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {comment.category && (
+                          <span className="text-[11px] font-medium px-2 py-0.5 rounded border border-[#0969da20] bg-[#ddf4ff] text-gh-link capitalize">
+                            {comment.category}
+                          </span>
+                        )}
+                        <SeverityBadge severity={comment.severity} />
+                      </div>
                     </div>
-                    <SeverityBadge severity={comment.severity} />
-                  </div>
-                  <div className="p-4 text-sm text-gh-text-primary">
-                    <div className="mb-3">
-                      <span className="inline-flex items-center gap-1.5 font-mono text-[12px] text-gh-link bg-[#ddf4ff] border border-[#0969da40] rounded px-1.5 py-0.5">
-                        <FileCode2 className="h-3 w-3" />
-                        {comment.filePath}:{comment.lineNumber}
-                      </span>
+                    <div className="p-4 text-sm text-gh-text-primary space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 font-mono text-[12px] text-gh-link bg-[#ddf4ff] border border-[#0969da40] rounded px-1.5 py-0.5">
+                          <FileCode2 className="h-3 w-3" />
+                          {comment.filePath}:{comment.lineNumber}
+                        </span>
+                      </div>
+
+                      {/* Explanation */}
+                      <div>
+                        <h4 className="text-[11px] font-semibold text-gh-text-secondary uppercase tracking-wider mb-1">
+                          Why this is dangerous:
+                        </h4>
+                        <p className="whitespace-pre-wrap leading-relaxed text-gh-text-primary">
+                          {comment.explanation || comment.commentBody}
+                        </p>
+                      </div>
+
+                      {/* OWASP Link */}
+                      {comment.owaspRef && (
+                        <div className="text-[13px]">
+                          <span className="font-semibold text-gh-text-secondary">OWASP Reference: </span>
+                          {isValidOwaspUrl ? (
+                            <a
+                              href={owaspUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gh-link hover:underline font-medium"
+                            >
+                              OWASP {comment.owaspRef}
+                            </a>
+                          ) : (
+                            <span className="font-medium text-gh-text-primary">OWASP {comment.owaspRef}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Fix Description */}
+                      {comment.fixDescription && (
+                        <div>
+                          <h4 className="text-[11px] font-semibold text-gh-text-secondary uppercase tracking-wider mb-1">
+                            Suggested Fix:
+                          </h4>
+                          <p className="whitespace-pre-wrap leading-relaxed text-gh-text-primary">
+                            {comment.fixDescription}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Code Block */}
+                      {comment.fixCode && (
+                        <div className="rounded border border-gh-border bg-gh-sidebar p-3 font-mono text-[12px] whitespace-pre overflow-x-auto text-gh-text-primary mt-2">
+                          <div className="text-gh-text-secondary border-b border-gh-border pb-1 mb-1 select-none">
+                            // AI-generated fix — review before applying.
+                          </div>
+                          {comment.fixCode}
+                        </div>
+                      )}
                     </div>
-                    <p className="whitespace-pre-wrap leading-relaxed">{comment.commentBody}</p>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -80,5 +80,14 @@ model ReviewComment {
   githubCommentId String?
   createdAt       DateTime  @default(now())
 
+  category        String?
+  title           String?
+  explanation     String?   @db.Text
+  owaspRef        String?
+  owaspUrl        String?
+  fixDescription  String?   @db.Text
+  fixCode         String?   @db.Text
+  fixLanguage     String?
+
   @@index([createdAt])
 }

@@ -156,9 +156,15 @@ describe('Worker processReviewJob', () => {
         {
           file: 'src/auth.ts',
           line: 1,
-          severity: 'warning',
+          severity: 'high',
           category: 'security',
-          comment: 'Hardcoded credentials found.',
+          title: 'Hardcoded credentials',
+          explanation: 'Hardcoded credentials found. This is dangerous because it exposes keys in plain text.',
+          owasp_ref: 'A02:2021',
+          owasp_url: 'https://owasp.org/Top10/A02_2021-Cryptographic_Failures/',
+          fix_description: 'Load the token from environment variables instead.',
+          fix_code: 'const token = process.env.TOKEN;',
+          fix_language: 'typescript',
         },
       ]),
     });
@@ -195,7 +201,7 @@ describe('Worker processReviewJob', () => {
       mediaType: { format: 'diff' },
     });
 
-    // Verify Gemini prompt contains safe PR Title and Diff
+    // Verify Gemini prompt contains Diff
     expect(mockCallGeminiWithBreaker).toHaveBeenCalledWith(
       expect.stringContaining('Fix critical bug in auth flow'),
       expect.objectContaining({
@@ -220,7 +226,7 @@ describe('Worker processReviewJob', () => {
         {
           path: 'src/auth.ts',
           line: 1,
-          body: '**[WARNING] security**\n\nHardcoded credentials found.',
+          body: expect.stringContaining('### ⚠️ DevFlow CI: Hardcoded credentials'),
         },
       ],
     });
@@ -261,8 +267,16 @@ describe('Worker processReviewJob', () => {
           filePath: 'src/auth.ts',
           lineNumber: 1,
           commentType: 'security',
-          severity: 'warning',
-          commentBody: 'Hardcoded credentials found.',
+          severity: 'high',
+          commentBody: 'Hardcoded credentials found. This is dangerous because it exposes keys in plain text.',
+          category: 'security',
+          title: 'Hardcoded credentials',
+          explanation: 'Hardcoded credentials found. This is dangerous because it exposes keys in plain text.',
+          owaspRef: 'A02:2021',
+          owaspUrl: 'https://owasp.org/Top10/A02_2021-Cryptographic_Failures/',
+          fixDescription: 'Load the token from environment variables instead.',
+          fixCode: 'const token = process.env.TOKEN;',
+          fixLanguage: 'typescript',
         },
       ],
     });
@@ -287,12 +301,6 @@ describe('Worker processReviewJob', () => {
     expect(mockCreateReview).not.toHaveBeenCalled();
     expect(mockUpsert).not.toHaveBeenCalled();
 
-    // Verify metrics are not incremented (or if they are, verify final block isn't executed)
-    // Actually in worker.ts: idempotency skip returns early before try/catch finishes, but finally runs.
-    // Let's verify what happens: startTime is set, and finally block is executed.
-    // In worker.ts lines 97-103:
-    // if (await isAlreadyReviewed(repositoryFullName, number, headSha)) { return; }
-    // Thus finally block runs and registers 'success' since jobStatus is initialized to 'success'.
     expect(mockInc).toHaveBeenCalledWith({ status: 'success' });
   });
 
@@ -329,10 +337,6 @@ ${'a'.repeat(50001)}
 
     await processReviewJob(mockJob);
 
-    // Should create a comment instead of structured review comments (or issue a single general comment)
-    // In worker.ts, if JSON.parse fails, it falls back to a list containing a general comment:
-    // reviewComments = [{ file: 'general', line: null, severity: 'suggestion', category: 'style', comment: response.text }]
-    // It posts no inline comments to createReview, but calls issues.createComment for general comment:
     expect(mockCreateReview).toHaveBeenCalledWith(
       expect.objectContaining({
         comments: undefined,
@@ -342,7 +346,7 @@ ${'a'.repeat(50001)}
       owner: 'test-owner',
       repo: 'test-repo',
       issue_number: 42,
-      body: '**[SUGGESTION]** Sorry, this is just plain text explanation and not JSON.',
+      body: expect.stringContaining('### ⚠️ DevFlow CI: Review Summary'),
     });
 
     // DB record should still be created
@@ -355,8 +359,16 @@ ${'a'.repeat(50001)}
           filePath: 'general',
           lineNumber: null,
           commentType: 'style',
-          severity: 'suggestion',
-          commentBody: 'Sorry, this is just plain text explanation and not JSON.',
+          severity: 'info',
+          commentBody: 'DevFlow CI review completed. Gemini was unable to return structured JSON format.',
+          category: 'style',
+          title: 'Review Summary',
+          explanation: 'DevFlow CI review completed. Gemini was unable to return structured JSON format.',
+          owaspRef: null,
+          owaspUrl: null,
+          fixDescription: 'Please review code changes manually.',
+          fixCode: null,
+          fixLanguage: null,
         },
       ],
     });

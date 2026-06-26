@@ -49,6 +49,14 @@ export interface ReviewComment {
   commentBody: string;
   githubCommentId: string | null;
   createdAt: string;
+  category?: string | null;
+  title?: string | null;
+  explanation?: string | null;
+  owaspRef?: string | null;
+  owaspUrl?: string | null;
+  fixDescription?: string | null;
+  fixCode?: string | null;
+  fixLanguage?: string | null;
 }
 
 export interface Stats {
