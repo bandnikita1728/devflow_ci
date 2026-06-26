@@ -79,6 +79,9 @@ router.post(
       return;
     }
 
+    const installation = payload['installation'] as Record<string, any> | undefined;
+    const installationId = installation?.['id'] as number | undefined;
+
     // ── 4. Enqueue into BullMQ pr-review-queue ───────────────────────────────
     const jobData: PrReviewJobData = {
       deliveryId,
@@ -90,12 +93,16 @@ router.post(
       headSha:             ((pr['head'] as Record<string, unknown>)?.['sha'] as string) ?? '',
       enqueuedAt:          new Date().toISOString(),
       rawPayload:          payload,
+      installationId,
+      repoOwner:           (repo['owner'] as Record<string, any>)?.['login'] as string ?? '',
+      repoName:            (repo['name'] as string) ?? '',
+      prNumber:            (pr['number'] as number) ?? 0,
     };
 
     const queue = getPrReviewQueue();
 
     const job = await queue.add(
-      `pr-review:${deliveryId}`,
+      'review',
       jobData,
       {
         jobId: deliveryId, // Deduplicate at BullMQ layer too

@@ -53,6 +53,18 @@ export interface PrReviewJobData {
 
   /** Full decoded JSON payload from GitHub for audit / debugging. */
   rawPayload: Record<string, unknown>;
+
+  /** The installation ID of the GitHub App for the repo. */
+  installationId?: number;
+
+  /** Owner of the repository. */
+  repoOwner?: string;
+
+  /** Name of the repository. */
+  repoName?: string;
+
+  /** PR number (same as pullRequestNumber). */
+  prNumber?: number;
 }
 
 // ── BullMQ Connection ─────────────────────────────────────────────────────────

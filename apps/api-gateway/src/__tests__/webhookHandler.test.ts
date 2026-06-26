@@ -91,7 +91,12 @@ function buildPrPayload(overrides: Record<string, unknown> = {}): Record<string,
     },
     repository: {
       full_name: 'test-owner/test-repo',
+      owner: { login: 'test-owner' },
+      name: 'test-repo',
       ...((overrides['repository'] as Record<string, unknown>) || {}),
+    },
+    installation: {
+      id: 999,
     },
     ...overrides,
   };
@@ -133,11 +138,15 @@ describe('POST /webhooks/github', () => {
     expect(res.body.jobId).toBe(TEST_DELIVERY_ID);
     expect(mockQueueAdd).toHaveBeenCalledTimes(1);
     expect(mockQueueAdd).toHaveBeenCalledWith(
-      expect.stringContaining(TEST_DELIVERY_ID),
+      'review',
       expect.objectContaining({
         deliveryId: TEST_DELIVERY_ID,
         pullRequestNumber: 42,
         repositoryFullName: 'test-owner/test-repo',
+        installationId: 999,
+        repoOwner: 'test-owner',
+        repoName: 'test-repo',
+        prNumber: 42,
       }),
       expect.objectContaining({ jobId: TEST_DELIVERY_ID }),
     );

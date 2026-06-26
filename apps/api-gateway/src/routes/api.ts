@@ -2,23 +2,43 @@ import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { Octokit } from '@octokit/rest';
 import { decryptToken } from './auth';
+import { App } from '@octokit/app';
+import { readFileSync } from 'fs';
 
 const router = Router();
 const prisma = new PrismaClient();
 
+const privateKey = process.env.GITHUB_APP_PRIVATE_KEY ||
+  (() => {
+    try {
+      return readFileSync(process.env.GITHUB_APP_PRIVATE_KEY_PATH || './devflow-ci.2026-06-17.private-key.pem', 'utf8');
+    } catch {
+      return '';
+    }
+  })();
+
+const app = new App({
+  appId: process.env.GITHUB_APP_ID || '',
+  privateKey,
+  Octokit: Octokit as any,
+});
+
 // GET /api/stats — return { totalPRs, completedReviews, failedReviews, avgProcessingTimeMs }
-router.get('/stats', async (_req: Request, res: Response) => {
+router.get('/stats', async (req: Request, res: Response) => {
   try {
-    const totalPRs = await prisma.pullRequest.count();
+    const userId = req.user!.id;
+    const totalPRs = await prisma.pullRequest.count({
+      where: { userId },
+    });
     const completedReviews = await prisma.reviewJob.count({
-      where: { status: 'completed' },
+      where: { status: 'completed', pullRequest: { userId } },
     });
     const failedReviews = await prisma.reviewJob.count({
-      where: { status: 'failed' },
+      where: { status: 'failed', pullRequest: { userId } },
     });
 
     const completedJobs = await prisma.reviewJob.findMany({
-      where: { status: 'completed', processingTimeMs: { not: null } },
+      where: { status: 'completed', processingTimeMs: { not: null }, pullRequest: { userId } },
       select: { processingTimeMs: true },
     });
 
@@ -46,12 +66,14 @@ router.get('/stats', async (_req: Request, res: Response) => {
 // GET /api/reviews — paginated list (20 per page), include PullRequest relation, ordered by createdAt desc
 router.get('/reviews', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const page = parseInt(req.query.page as string) || 1;
     const limit = 20;
     const skip = (page - 1) * limit;
 
     const [reviews, total] = await Promise.all([
       prisma.reviewJob.findMany({
+        where: { pullRequest: { userId } },
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -59,7 +81,9 @@ router.get('/reviews', async (req: Request, res: Response) => {
           pullRequest: true,
         },
       }),
-      prisma.reviewJob.count(),
+      prisma.reviewJob.count({
+        where: { pullRequest: { userId } },
+      }),
     ]);
 
     res.json({
@@ -80,9 +104,10 @@ router.get('/reviews', async (req: Request, res: Response) => {
 // GET /api/reviews/:id — single ReviewJob with all ReviewComments and PullRequest
 router.get('/reviews/:id', async (req: Request, res: Response): Promise<void> => {
   try {
+    const userId = req.user!.id;
     const id = req.params.id as string;
-    const review = await prisma.reviewJob.findUnique({
-      where: { id },
+    const review = await prisma.reviewJob.findFirst({
+      where: { id, pullRequest: { userId } },
       include: {
         pullRequest: true,
         comments: {
@@ -153,13 +178,29 @@ router.post('/repos', async (req: Request, res: Response): Promise<void> => {
     // Verify repo access and get repo ID
     const ghRepo = await octokit.repos.get({ owner, repo });
     
+    // Retrieve installation ID dynamically using the GitHub App
+    let installationId: number;
+    try {
+      const { data: installation } = await app.octokit.request(
+        'GET /repos/{owner}/{repo}/installation',
+        { owner, repo }
+      );
+      installationId = installation.id;
+    } catch (err: any) {
+      console.error('Error fetching installation for repository:', err);
+      res.status(404).json({ error: 'GitHub App is not installed on this repository. Please install it first.' });
+      return;
+    }
+
+    const installationOctokit = (await app.getInstallationOctokit(installationId)) as unknown as Octokit;
+
     // Create webhook
     const webhookUrl = process.env.WEBHOOK_URL || 'https://your-ngrok-url/webhooks/github';
     const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET || process.env.GITHUB_SECRET;
 
     let hookId: string;
     try {
-      const hook = await octokit.repos.createWebhook({
+      const hook = await installationOctokit.repos.createWebhook({
         owner,
         repo,
         name: 'web',
@@ -175,14 +216,16 @@ router.post('/repos', async (req: Request, res: Response): Promise<void> => {
     } catch (err: any) {
       if (err.status === 422) {
         // Webhook already exists on this repo (e.g. from an earlier connection attempt) — reuse it instead of failing
-        const { data: hooks } = await octokit.repos.listWebhooks({ owner, repo });
+        const { data: hooks } = await installationOctokit.repos.listWebhooks({ owner, repo });
         const existingHook = hooks.find((h: any) => h.config?.url === webhookUrl) || hooks[0];
         if (!existingHook) {
-          throw err;
+          res.status(422).json({ error: 'Webhook registration failed: Webhook already exists but could not be retrieved.' });
+          return;
         }
         hookId = existingHook.id.toString();
       } else {
-        throw err;
+        res.status(422).json({ error: `Webhook registration failed: ${err.message}` });
+        return;
       }
     }
 
@@ -192,6 +235,7 @@ router.post('/repos', async (req: Request, res: Response): Promise<void> => {
         githubRepoId: ghRepo.data.id.toString(),
         fullName: repoFullName,
         webhookId: hookId,
+        installationId,
         isActive: true,
       }
     });
@@ -234,7 +278,10 @@ router.delete('/repos/:id', async (req: Request, res: Response): Promise<void> =
 
     if (repository.webhookId) {
       try {
-        await octokit.repos.deleteWebhook({
+        const instOctokit = repository.installationId
+          ? ((await app.getInstallationOctokit(repository.installationId)) as unknown as Octokit)
+          : octokit;
+        await instOctokit.repos.deleteWebhook({
           owner,
           repo,
           hook_id: parseInt(repository.webhookId, 10)

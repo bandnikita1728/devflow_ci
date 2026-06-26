@@ -88,7 +88,7 @@ async function isAlreadyReviewed(
  *      whose workers stopped sending heartbeats) and moves them back to waiting.
  */
 export async function processReviewJob(job: Job): Promise<void> {
-  const { pullRequestNumber, repositoryFullName, headSha, title: prTitle } = job.data as any;
+  const { pullRequestNumber, repositoryFullName, headSha, title: prTitle, installationId } = job.data as any;
   const [owner, repo] = (repositoryFullName as string).split('/');
   const number = pullRequestNumber as number;
 
@@ -97,6 +97,14 @@ export async function processReviewJob(job: Job): Promise<void> {
   let jobStatus: 'success' | 'failed' | 'circuit_open' = 'success';
 
   try {
+    if (installationId === undefined || installationId === null) {
+      throw new Error('Missing installationId');
+    }
+    const parsedInstallationId = parseInt(installationId as any, 10);
+    if (isNaN(parsedInstallationId)) {
+      throw new Error('Invalid installationId: NaN');
+    }
+
     // ── Idempotency gate: skip if this headSha is already reviewed ────────
     if (await isAlreadyReviewed(repositoryFullName, number, headSha)) {
       console.info(
@@ -108,14 +116,52 @@ export async function processReviewJob(job: Job): Promise<void> {
     // ── Step 1: Fetch the PR Diff from GitHub ─────────────────────────────
     console.log(`[Worker] Fetching diff for ${owner}/${repo}#${number}...`);
     
-    // Get installation ID for this repo
-    const { data: installation } = await app.octokit.request(
-      'GET /repos/{owner}/{repo}/installation',
-      { owner, repo }
-    );
+    // Get authenticated Octokit for this installation dynamically
+    let octokit: Octokit;
+    try {
+      octokit = (await app.getInstallationOctokit(parsedInstallationId)) as unknown as Octokit;
+    } catch (err: any) {
+      const isRevoked = err.message && (
+        err.message.includes('not found') || 
+        err.message.includes('revoked') || 
+        err.message.includes('installation') ||
+        err.status === 404
+      );
+      if (isRevoked) {
+        console.warn(`[Worker] GitHub App installation revoked or not found: ${err.message}`);
+        
+        const pr = await prisma.pullRequest.upsert({
+          where: {
+            repoFullName_prNumber: {
+              repoFullName: repositoryFullName as string,
+              prNumber: number,
+            },
+          },
+          update: {
+            headSha: (headSha as string) || '',
+            status: 'failed',
+          },
+          create: {
+            repoFullName: repositoryFullName as string,
+            prNumber: number,
+            headSha: (headSha as string) || '',
+            status: 'failed',
+          },
+        });
 
-    // Get authenticated Octokit for this installation
-    const octokit = (await app.getInstallationOctokit(installation.id)) as unknown as Octokit;
+        await prisma.reviewJob.create({
+          data: {
+            pullRequestId: pr.id,
+            bullmqJobId: job.id ?? null,
+            status: 'INSTALLATION_REVOKED',
+            errorMessage: err.message,
+            completedAt: new Date(),
+          }
+        });
+        return; // Resolve successfully so BullMQ doesn't retry
+      }
+      throw err;
+    }
 
     const { data: diff } = await octokit.pulls.get({
       owner,

@@ -229,6 +229,7 @@ describe('Webhook Pipeline & Account Cascade Integration Tests', () => {
         userId: user.id,
         githubRepoId: 'repo-999',
         fullName: 'cascade-test-user/repo-999',
+        installationId: 12345,
         isActive: true,
       },
     });

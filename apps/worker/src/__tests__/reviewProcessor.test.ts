@@ -141,6 +141,7 @@ describe('Worker processReviewJob', () => {
         repositoryFullName: 'test-owner/test-repo',
         headSha: 'abc123headsha',
         title: 'Fix critical bug in auth flow',
+        installationId: 999,
       },
     } as unknown as Job;
 
@@ -189,10 +190,6 @@ describe('Worker processReviewJob', () => {
     });
 
     // Verify GitHub calls
-    expect(mockRequest).toHaveBeenCalledWith('GET /repos/{owner}/{repo}/installation', {
-      owner: 'test-owner',
-      repo: 'test-repo',
-    });
     expect(mockGetInstallationOctokit).toHaveBeenCalledWith(999);
     expect(mockGetPulls).toHaveBeenCalledWith({
       owner: 'test-owner',
@@ -400,5 +397,48 @@ ${'a'.repeat(50001)}
 
     // Metrics should show failed
     expect(mockInc).toHaveBeenCalledWith({ status: 'failed' });
+  });
+
+  // ── 7. Missing installationId ────────────────────────────────────────────────
+  it('should throw "Missing installationId" if installationId is undefined in job.data', async () => {
+    mockJob.data.installationId = undefined;
+
+    await expect(processReviewJob(mockJob)).rejects.toThrow('Missing installationId');
+    expect(mockGetInstallationOctokit).not.toHaveBeenCalled();
+  });
+
+  it('should throw "Invalid installationId: NaN" if installationId is not a valid number', async () => {
+    mockJob.data.installationId = 'not-a-number';
+
+    await expect(processReviewJob(mockJob)).rejects.toThrow('Invalid installationId: NaN');
+    expect(mockGetInstallationOctokit).not.toHaveBeenCalled();
+  });
+
+  // ── 8. Revoked / Not Found Installation ─────────────────────────────────────
+  it('should save review with status INSTALLATION_REVOKED and not retry if getInstallationOctokit throws installation not found', async () => {
+    mockGetInstallationOctokit.mockRejectedValue(new Error('installation not found'));
+
+    await processReviewJob(mockJob);
+
+    // Should NOT request pull diff or invoke Gemini
+    expect(mockGetPulls).not.toHaveBeenCalled();
+    expect(mockCallGeminiWithBreaker).not.toHaveBeenCalled();
+
+    // Check review/PR created in DB with status failed and job status INSTALLATION_REVOKED
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ status: 'failed' }),
+        create: expect.objectContaining({ status: 'failed' }),
+      })
+    );
+    expect(mockCreate).toHaveBeenCalledWith({
+      data: {
+        pullRequestId: 'pr-id-123',
+        bullmqJobId: 'job-123',
+        status: 'INSTALLATION_REVOKED',
+        errorMessage: 'installation not found',
+        completedAt: expect.any(Date),
+      },
+    });
   });
 });

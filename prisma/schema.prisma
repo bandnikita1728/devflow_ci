@@ -24,14 +24,15 @@ model User {
 }
 
 model Repository {
-  id           String   @id @default(uuid())
-  user         User     @relation(fields: [userId], references: [id])
-  userId       String
-  githubRepoId String   @unique
-  fullName     String   @unique
-  webhookId    String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id             String   @id @default(uuid())
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String
+  githubRepoId   String   @unique
+  fullName       String   @unique
+  webhookId      String?
+  installationId Int
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
 }
 
 model PullRequest {
