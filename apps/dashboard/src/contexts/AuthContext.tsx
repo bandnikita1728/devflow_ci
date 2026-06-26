@@ -31,10 +31,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const urlToken = params.get('token');
     
     if (urlToken) {
+      // Fresh login — save token for this session
+      sessionStorage.setItem('auth_token', urlToken);
       setToken(urlToken);
       setAuthToken(urlToken);
       // Clear URL params
       window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      // Restore token from session if page was refreshed
+      const savedToken = sessionStorage.getItem('auth_token');
+      if (savedToken) {
+        setToken(savedToken);
+        setAuthToken(savedToken);
+      }
     }
 
     async function checkAuth() {
@@ -43,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(response.data);
       } catch {
         setUser(null);
+        sessionStorage.removeItem('auth_token'); // clear stale token
       } finally {
         setLoading(false);
       }
@@ -56,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setToken(null);
       setAuthToken(null);
+      sessionStorage.removeItem('auth_token'); // clear from session storage on logout
     } catch {
       console.error('Logout failed');
     }
