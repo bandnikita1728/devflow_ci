@@ -250,7 +250,11 @@ async function start(): Promise<void> {
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
-start().catch((err: Error) => {
-  console.error('[Server] Fatal: failed to start:', err.message, '\n', err.stack);
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== 'test') {
+  start().catch((err: Error) => {
+    console.error('[Server] Fatal: failed to start:', err.message, '\n', err.stack);
+    process.exit(1);
+  });
+}
+
+export { app, start };

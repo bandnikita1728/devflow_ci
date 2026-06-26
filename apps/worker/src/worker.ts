@@ -40,8 +40,10 @@ const connection: any = process.env.REDIS_URL
       maxRetriesPerRequest: null,
     };
 
-startQueueDepthPoller();
-startMetricsServer();
+if (process.env.NODE_ENV !== 'test') {
+  startQueueDepthPoller();
+  startMetricsServer();
+}
 
 // ── Horizontal scaling: concurrency config ────────────────────────────────────
 // WORKER_CONCURRENCY controls how many jobs this instance processes in parallel.
@@ -84,7 +86,7 @@ async function isAlreadyReviewed(
  *   3. stalledInterval (30s) — BullMQ actively checks for stalled jobs (ones
  *      whose workers stopped sending heartbeats) and moves them back to waiting.
  */
-const prWorker = new Worker('pr-review-queue', async (job: Job) => {
+export async function processReviewJob(job: Job): Promise<void> {
   const { pullRequestNumber, repositoryFullName, headSha, title: prTitle } = job.data as any;
   const [owner, repo] = (repositoryFullName as string).split('/');
   const number = pullRequestNumber as number;
@@ -282,7 +284,9 @@ ${safeDiff}
     reviewJobDuration.observe(durationInSeconds);
     reviewJobsProcessed.inc({ status: jobStatus });
   }
-}, {
+}
+
+const prWorker = new Worker('pr-review-queue', processReviewJob, {
   connection,
   // ── Horizontal scaling: BullMQ tuning ─────────────────────────────────────
   // concurrency: number of parallel jobs this single worker instance will pick
@@ -356,21 +360,23 @@ const shutdown = async (signal: string): Promise<void> => {
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT',  () => void shutdown('SIGINT'));
 
-// ── Render Free Tier Health Check ─────────────────────────────────────────────
-// Dummy HTTP server to satisfy Render's Web Service port binding requirement
-// Render requires you to listen on '0.0.0.0' (all network interfaces), not just localhost.
-// It also injects a specific PORT variable that you MUST use.
-const port = process.env.PORT ? Number(process.env.PORT) : 10000; 
+if (process.env.NODE_ENV !== 'test') {
+  // ── Render Free Tier Health Check ─────────────────────────────────────────────
+  // Dummy HTTP server to satisfy Render's Web Service port binding requirement
+  // Render requires you to listen on '0.0.0.0' (all network interfaces), not just localhost.
+  // It also injects a specific PORT variable that you MUST use.
+  const port = process.env.PORT ? Number(process.env.PORT) : 10000; 
 
-const server = http.createServer((_req, res) => {
-  res.writeHead(200);
-  res.end(JSON.stringify({
-    status: 'healthy',
-    concurrency: CONCURRENCY,
-    shuttingDown: isShuttingDown,
-  }));
-});
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200);
+    res.end(JSON.stringify({
+      status: 'healthy',
+      concurrency: CONCURRENCY,
+      shuttingDown: isShuttingDown,
+    }));
+  });
 
-server.listen(port, '0.0.0.0', () => {
-  console.log(`[Worker] Health-check server listening on port ${port}`);
-});
+  server.listen(port, '0.0.0.0', () => {
+    console.log(`[Worker] Health-check server listening on port ${port}`);
+  });
+}

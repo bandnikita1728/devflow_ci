@@ -67,7 +67,7 @@ export function verifyGitHubSignature(
       event_type: (req.headers['x-github-event'] as string) || 'unknown',
       validation_status: 'missing_signature'
     });
-    res.status(401).json({ error: 'Missing webhook signature' });
+    res.status(401).json({ error: 'Unauthorized' });
     return;
   }
 
@@ -122,7 +122,7 @@ export function verifyGitHubSignature(
         event_type: (req.headers['x-github-event'] as string) || 'unknown',
         validation_status: 'invalid_signature'
       });
-      res.status(403).json({ error: 'Invalid webhook signature' });
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
