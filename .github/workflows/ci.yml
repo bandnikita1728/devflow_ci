@@ -16,9 +16,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, v2-development]
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, v2-development]
 
 # Least-privilege: read-only by default. Individual jobs escalate as needed.
 permissions:
