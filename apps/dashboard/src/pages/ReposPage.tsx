@@ -26,7 +26,7 @@ export function ReposPage() {
       const res = await api.get(`/repos`, { withCredentials: true });
       setRepos(res.data);
     } catch {
-      console.error('Failed to fetch repos', err);
+      console.error('Failed to fetch repos');
     } finally {
       setIsLoading(false);
     }
@@ -41,7 +41,7 @@ export function ReposPage() {
       setNewRepoName('');
       setIsModalOpen(false);
       fetchRepos();
-    } catch {
+    } catch (err) {
       const axiosErr = err as AxiosError<{ error?: string }>;
       alert(axiosErr.response?.data?.error || 'Failed to connect repository. Ensure the bot has access.');
     } finally {
