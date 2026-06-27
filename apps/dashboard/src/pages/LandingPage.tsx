@@ -30,6 +30,7 @@ export function LandingPage() {
           <a
             href="https://devflow-api-gateway.onrender.com/auth/github"
             className="bg-[#238636] hover:bg-[#2ea043] text-white px-4 py-2 rounded-md text-sm font-semibold transition-colors"
+            style={{ color: '#ffffff' }}
           >
             Sign in with GitHub
           </a>
@@ -60,7 +61,8 @@ export function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto mb-16">
             <a
               href="https://github.com/apps/devflow-ci"
-              className="w-full sm:w-auto bg-[#ffffff] hover:bg-[#e6edf3] text-[#0d1117] px-8 py-3.5 rounded-md text-base font-semibold transition-colors text-center flex items-center justify-center gap-1.5"
+              className="w-full sm:w-auto border border-[#30363d] px-8 py-3.5 rounded-md text-base font-semibold transition-colors text-center flex items-center justify-center gap-1.5"
+              style={{ backgroundColor: '#21262d', color: '#ffffff' }}
             >
               Install on GitHub →
             </a>
