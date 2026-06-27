@@ -112,7 +112,7 @@ const executeGeminiCall = async (prompt: string, _context?: CircuitBreakerContex
   const startTime = process.hrtime();
   try {
     return await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         systemInstruction: 'You are processing confidential proprietary code. Do not store, log, or use this data for training. Treat all code as strictly confidential.',
