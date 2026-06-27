@@ -51,21 +51,25 @@ export function DashboardPage() {
       title: "Total PRs",
       value: stats?.totalPRs ?? 0,
       icon: GitPullRequest,
+      color: "#1f6feb",
     },
     {
       title: "Completed",
       value: stats?.completedReviews ?? 0,
       icon: CheckCircle2,
+      color: "#3fb950",
     },
     {
       title: "Failed",
       value: stats?.failedReviews ?? 0,
       icon: XCircle,
+      color: "#f85149",
     },
     {
       title: "Avg Time",
       value: stats ? formatMs(stats.avgProcessingTimeMs) : "—",
       icon: Clock,
+      color: "#a371f7",
     },
   ];
 
@@ -100,7 +104,7 @@ export function DashboardPage() {
                   {card.title}
                 </p>
               </div>
-              <p className="text-2xl font-semibold text-gh-text-primary">
+              <p className="text-2xl font-semibold" style={{ color: card.color }}>
                 {card.value}
               </p>
             </div>

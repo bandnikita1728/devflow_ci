@@ -70,7 +70,7 @@ export function ReposPage() {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-[#1F883D] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#1a7431] transition-colors"
+          className="flex items-center gap-2 bg-[#0969da] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#388bfd] transition-colors"
         >
           <Plus className="w-4 h-4" />
           Connect Repository
@@ -158,7 +158,7 @@ export function ReposPage() {
                 <button
                   type="submit"
                   disabled={!newRepoName || isConnecting}
-                  className="px-4 py-2 text-sm font-medium text-white bg-[#238636] border-none rounded-md hover:bg-[#2ea043] disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#0969da] border-none rounded-md hover:bg-[#388bfd] disabled:opacity-50 transition-colors"
                 >
                   {isConnecting ? 'Connecting...' : 'Connect'}
                 </button>

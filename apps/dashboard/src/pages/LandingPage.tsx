@@ -29,7 +29,7 @@ export function LandingPage() {
             className="bg-[#238636] hover:bg-[#2ea043] text-[#ffffff] px-4 py-2 rounded-md text-sm font-semibold transition-colors"
             style={{ color: '#ffffff' }}
           >
-            Get started free
+            Sign in with GitHub
           </a>
         </div>
       </nav>
@@ -40,28 +40,28 @@ export function LandingPage() {
           <div className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#30363d] bg-[#161b22] text-sm text-[#8b949e]">
             <span>✨ Now powered by Gemini 2.5 Flash</span>
           </div>
-          <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-4 text-white">
-            AI Code Reviews, Automatically.
+          <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-8 text-white">
+            AI code reviews. Inline. Instant.
           </h1>
-          <p className="text-sm text-[#8b949e] mb-8">
-            by Nikita Band
-          </p>
           <p className="text-xl md:text-2xl text-[#8b949e] mb-10 max-w-3xl leading-relaxed">
             DevFlow CI reviews every Pull Request instantly — catching security vulnerabilities, bugs, and bad practices before they hit main.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto mb-6">
             <a
-              href="https://devflow-api-gateway.onrender.com/auth/github"
-              className="w-full sm:w-auto bg-[#238636] hover:bg-[#2ea043] text-[#ffffff] px-8 py-3.5 rounded-md text-base font-semibold transition-colors text-center"
+              href="https://github.com/apps/devflow-ci"
+              className="w-full sm:w-auto bg-[#0969da] hover:bg-[#1f6feb] text-[#ffffff] px-8 py-3.5 rounded-md text-base font-semibold transition-colors text-center flex items-center justify-center gap-2"
               style={{ color: '#ffffff' }}
             >
-              Get started free
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.43.372.82 1.102.82 2.222v3.293c0 .319.22.694.825.576C20.565 21.795 24 17.3 24 12c0-6.63-5.37-12-12-12z" />
+              </svg>
+              Install on GitHub
             </a>
             <a
               href="#features"
               className="w-full sm:w-auto bg-[#161b22] hover:bg-[#30363d] border border-[#30363d] text-[#e6edf3] px-8 py-3.5 rounded-md text-base font-semibold transition-colors text-center"
             >
-              View demo
+              View Demo
             </a>
           </div>
           <p className="text-sm text-[#8b949e]">
@@ -148,6 +148,85 @@ export function LandingPage() {
           </div>
         </section>
 
+        {/* ONBOARDING SECTION */}
+        <section className="px-6 py-20 bg-[#161b22]/50 border-t border-[#30363d]">
+          <div className="max-w-5xl mx-auto">
+            <h2 className="text-3xl font-bold text-center mb-12 text-white">Get started in 4 steps</h2>
+            <div className="grid md:grid-cols-2 gap-8">
+              {[
+                {
+                  step: 1,
+                  title: "Step 1 — Install the GitHub App",
+                  body: (
+                    <>
+                      Go to <a href="https://github.com/apps/devflow-ci" target="_blank" rel="noreferrer" className="text-[#58a6ff] hover:underline">github.com/apps/devflow-ci</a> and click Install.<br />
+                      Select your GitHub account and choose which repositories to allow.<br />
+                      You'll get a confirmation email from GitHub — no action needed.
+                    </>
+                  )
+                },
+                {
+                  step: 2,
+                  title: "Step 2 — Sign in to the Dashboard",
+                  body: "Click \"Sign in with GitHub\" and authorize DevFlow CI. Accept the privacy notice on first login."
+                },
+                {
+                  step: 3,
+                  title: "Step 3 — Connect a Repository",
+                  body: "Go to Repositories → Connect Repository. Enter your repo as owner/repo (e.g. nikitaband/myapp). The GitHub App must be installed on the repo owner's account first."
+                },
+                {
+                  step: 4,
+                  title: "Step 4 — Open a Pull Request",
+                  body: "Create a branch, make changes, open a PR. The DevFlow CI bot posts inline comments within 60 seconds."
+                }
+              ].map((item) => (
+                <div key={item.step} className="bg-[#161b22] border border-[#30363d] p-6 rounded-xl flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-[#1f6feb] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                    {item.step}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2 text-white">{item.title}</h3>
+                    <p className="text-[#8b949e] leading-relaxed text-sm">{item.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* PRIVACY & SECURITY SECTION */}
+        <section className="px-6 py-20 border-t border-[#30363d]">
+          <div className="max-w-5xl mx-auto">
+            <h2 className="text-3xl font-bold text-center mb-12 text-white">Built with privacy and security in mind</h2>
+            <div className="grid md:grid-cols-2 gap-8">
+              {[
+                {
+                  title: "🔐 AES-256 Encryption",
+                  body: "Your GitHub tokens are encrypted at rest using AES-256. Never stored in plain text."
+                },
+                {
+                  title: "🔏 Zero AI Training",
+                  body: "We instruct Gemini to never train on your code. Your proprietary code stays strictly confidential."
+                },
+                {
+                  title: "✅ HMAC Verification",
+                  body: "Every webhook is cryptographically signed and verified to confirm it legitimately came from GitHub."
+                },
+                {
+                  title: "🗑️ Full Data Deletion",
+                  body: "Delete your account and all data — repos, reviews, tokens — is permanently purged instantly."
+                }
+              ].map((item, idx) => (
+                <div key={idx} className="bg-[#161b22] border border-[#30363d] p-6 rounded-xl">
+                  <h3 className="text-lg font-semibold mb-2 text-white">{item.title}</h3>
+                  <p className="text-[#8b949e] leading-relaxed text-sm">{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* 5 - CTA section */}
         <section className="px-6 py-24 bg-[#161b22] border-t border-[#30363d] text-center">
           <div className="max-w-3xl mx-auto">
@@ -160,6 +239,39 @@ export function LandingPage() {
             >
               Sign in with GitHub
             </a>
+          </div>
+        </section>
+
+        {/* Troubleshooting table section */}
+        <section className="px-6 py-20 max-w-5xl mx-auto border-t border-[#30363d]">
+          <h2 className="text-3xl font-bold text-center mb-12 text-white">Troubleshooting</h2>
+          <div className="overflow-x-auto border border-[#30363d] rounded-xl">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-[#30363d] bg-[#161b22]">
+                  <th className="p-4 font-semibold text-white w-1/3">Issue</th>
+                  <th className="p-4 font-semibold text-white">Fix</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#30363d] bg-[#0d1117]">
+                <tr>
+                  <td className="p-4 text-[#e6edf3] font-medium">Bot not commenting</td>
+                  <td className="p-4 text-[#8b949e]">Install GitHub App on the repo owner's account first</td>
+                </tr>
+                <tr>
+                  <td className="p-4 text-[#e6edf3] font-medium">Webhook registration failed</td>
+                  <td className="p-4 text-[#8b949e]">Install the App first, then reconnect the repo</td>
+                </tr>
+                <tr>
+                  <td className="p-4 text-[#e6edf3] font-medium">AI review temporarily unavailable</td>
+                  <td className="p-4 text-[#8b949e]">Gemini is busy — open a new PR in 2-3 minutes</td>
+                </tr>
+                <tr>
+                  <td className="p-4 text-[#e6edf3] font-medium">Reviews not in dashboard</td>
+                  <td className="p-4 text-[#8b949e]">Sign out and sign back in with your GitHub account</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </section>
       </main>
