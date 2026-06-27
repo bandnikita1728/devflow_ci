@@ -47,6 +47,72 @@
 - 📈 Grafana Cloud monitoring — tracks queue depth, latency, circuit breaker state, and review failure rate with alerting
 - 🧠 Structured OWASP reviews — every finding includes severity, explanation, OWASP Top 10 reference, and an AI-generated secure code fix with disclaimer
 
+## 🚀 Getting Started with DevFlow CI
+
+Follow these steps to start getting AI-powered code reviews on your pull requests.
+
+### Step 1 — Install the GitHub App
+Go to the DevFlow CI GitHub App page and install it on your account:
+
+👉 **[Install DevFlow CI](https://github.com/apps/devflow-ci)**
+
+- Click **Install**
+- Select your GitHub account
+- Choose **All repositories** or select specific repos
+- Click **Install**
+
+### Step 1B — Accept the GitHub Email
+After installing the app, GitHub sends a confirmation email to your registered email address.
+
+- Open the email from **GitHub** with subject: **"A third-party OAuth application has been added to your account"**
+- This is just a notification — no action required from this email
+
+Then GitHub may also send a permissions request email if DevFlow CI updates its permissions:
+- Open the email and click **Review and accept**
+- Or go to `github.com/settings/installations` → click **Configure** next to DevFlow CI → accept any pending permissions
+
+> ✅ Once accepted, the bot has full permission to post comments on your repositories
+
+### Step 2 — Sign in to the Dashboard
+Go to the DevFlow CI dashboard and sign in with your GitHub account:
+
+👉 **[devflow-ci-dashboard.onrender.com](https://devflow-ci-dashboard.onrender.com)**
+
+- Click **Sign in with GitHub**
+- Authorize DevFlow CI when prompted
+- You will be redirected back to the dashboard
+
+### Step 3 — Accept the Privacy Notice
+On first login, a privacy banner will appear at the bottom of the screen.
+
+- Read the notice — DevFlow CI sends PR diffs to Google Gemini AI for analysis
+- Click **Got it** to accept and continue
+
+### Step 4 — Connect a Repository
+- Go to **Repositories** in the sidebar
+- Click **Connect Repository**
+- Enter your repo in the format `owner/repo` (e.g. `nikitaband2345/testt2`)
+- Click **Connect**
+
+> ⚠️ The GitHub App must be installed on the account that owns the repo (Step 1) before connecting.
+
+### Step 5 — Open a Pull Request
+Create a new branch, make changes, and open a pull request on any connected repo.
+
+Within **60 seconds**, the DevFlow CI bot will post inline comments directly on your PR with:
+- 🔴 Severity badge (Critical / High / Medium / Low)
+- 📖 Explanation of why the issue is dangerous
+- 🔗 OWASP Top 10 reference link
+- ✅ AI-generated secure code fix with disclaimer
+
+### Troubleshooting
+| Issue | Fix |
+|---|---|
+| Bot not commenting | Make sure the GitHub App is installed on the repo owner's account |
+| "Webhook registration failed" | Install the GitHub App first, then reconnect the repo |
+| "AI review temporarily unavailable" | Gemini is under high demand — open a new PR in 2-3 minutes |
+| Reviews not showing in dashboard | Sign out and sign back in with your own GitHub account |
+
 ## 🛠️ Tech Stack
 
 | Backend | Frontend |
