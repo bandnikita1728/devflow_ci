@@ -9,6 +9,7 @@ import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import { generateCodeReview } from './services/geminiService';
 import { formatComment, limitCommentLength } from './services/commentFormatter';
+import { searchSimilarPRs } from './services/ragService';
 import {
   startQueueDepthPoller,
   startMetricsServer,
@@ -192,6 +193,21 @@ export async function processReviewJob(job: Job): Promise<void> {
         return true;
       })
       .join('diff --git');
+
+    // ── Step 1b: RAG — find similar past PRs for extra review context ────
+    let ragContext = '';
+    const similarPRs = await searchSimilarPRs(filteredDiff, 3);
+    if (similarPRs.length > 0) {
+      ragContext = similarPRs
+        .map(p => {
+          const change = p.summary ? `${p.title} — ${p.summary}` : p.title;
+          return `PR#${p.prNumber} (${change})`;
+        })
+        .join(', ');
+      console.log(`[Worker] RAG context injected for PR #${number}: ${ragContext}`);
+    } else {
+      console.log(`[Worker] RAG search found no similar PRs for #${number}. Reviewing without context.`);
+    }
 
     // ── Step 2: Analyze code with Gemini ─────────────────────────────────
     console.log(`[Worker] Analyzing code with Gemini 2.5 Flash...`);
