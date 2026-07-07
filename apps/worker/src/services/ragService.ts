@@ -14,6 +14,16 @@ export interface PRData {
   summary?: string;
 }
 
+export interface SimilarPR {
+  repoFullName: string;
+  prNumber: number;
+  headSha: string;
+  title: string;
+  summary: string;
+  diff: string;
+  distance: number | null;
+}
+
 let client: ChromaClient | null = null;
 let collection: Collection | null = null;
 let embedder: FeatureExtractionPipeline | null = null;
@@ -74,4 +84,32 @@ export async function embedAndStore(prData: PRData): Promise<string> {
   });
 
   return id;
+}
+
+export async function searchSimilarPRs(newPRDiff: string, topK = 3): Promise<SimilarPR[]> {
+  const col = collection ?? (await initializeRAG());
+  const embedding = await embedText(newPRDiff);
+
+  const results = await col.query({
+    queryEmbeddings: [embedding],
+    nResults: topK,
+  });
+
+  const ids = results.ids[0] ?? [];
+  const documents = results.documents[0] ?? [];
+  const metadatas = results.metadatas[0] ?? [];
+  const distances = results.distances?.[0] ?? [];
+
+  return ids.map((_, i) => {
+    const meta = (metadatas[i] ?? {}) as Record<string, any>;
+    return {
+      repoFullName: meta.repoFullName,
+      prNumber: meta.prNumber,
+      headSha: meta.headSha,
+      title: meta.title,
+      summary: meta.summary ?? '',
+      diff: documents[i] ?? '',
+      distance: distances[i],
+    };
+  });
 }
