@@ -117,6 +117,16 @@ jest.mock('../services/circuitBreaker', () => {
   };
 });
 
+// ── Mock RAG Service ─────────────────────────────────────────────────────────────
+const mockSearchSimilarPRs = jest.fn();
+const mockEmbedAndStore = jest.fn();
+jest.mock('../services/ragService', () => {
+  return {
+    searchSimilarPRs: mockSearchSimilarPRs,
+    embedAndStore: mockEmbedAndStore,
+  };
+});
+
 // ── Mock Metrics ───────────────────────────────────────────────────────────────
 const mockInc = jest.fn();
 const mockObserve = jest.fn();
@@ -177,6 +187,10 @@ describe('Worker processReviewJob', () => {
     mockUpsert.mockResolvedValue({ id: 'pr-id-123' });
     mockCreate.mockResolvedValue({ id: 'job-record-id' });
     mockCreateMany.mockResolvedValue({ count: 1 });
+
+    // Default RAG behavior: no similar PRs found, indexing succeeds
+    mockSearchSimilarPRs.mockResolvedValue([]);
+    mockEmbedAndStore.mockResolvedValue('test-owner/test-repo#42@abc123headsha');
   });
 
   // ── 1. Happy path ───────────────────────────────────────────────────────────
@@ -447,5 +461,89 @@ ${'a'.repeat(50001)}
         completedAt: expect.any(Date),
       },
     });
+  });
+
+  // ── 9. RAG context injection ────────────────────────────────────────────────
+  it('should inject similar-PR context from RAG search into the Gemini prompt', async () => {
+    mockSearchSimilarPRs.mockResolvedValue([
+      {
+        repoFullName: 'test-owner/test-repo',
+        prNumber: 55,
+        headSha: 'sha-old-1',
+        title: 'Fix JWT expiry check',
+        summary: '[high/security] Hardcoded credentials',
+        diff: 'old diff',
+        distance: 0.2,
+      },
+      {
+        repoFullName: 'test-owner/test-repo',
+        prNumber: 61,
+        headSha: 'sha-old-2',
+        title: 'Add token rotation',
+        summary: '',
+        diff: 'old diff 2',
+        distance: 0.5,
+      },
+    ]);
+
+    await processReviewJob(mockJob);
+
+    expect(mockSearchSimilarPRs).toHaveBeenCalledWith(expect.any(String), 3);
+
+    const calledPrompt = mockCallGeminiWithBreaker.mock.calls[0][0];
+    expect(calledPrompt).toContain('Similar past PRs show');
+    expect(calledPrompt).toContain('PR#55 (Fix JWT expiry check — [high/security] Hardcoded credentials)');
+    expect(calledPrompt).toContain('PR#61 (Add token rotation)');
+    expect(calledPrompt).toContain('Use this to guide your review');
+  });
+
+  // ── 10. RAG search with no matches ──────────────────────────────────────────
+  it('should review normally without a context block when RAG finds no similar PRs', async () => {
+    mockSearchSimilarPRs.mockResolvedValue([]);
+
+    await processReviewJob(mockJob);
+
+    const calledPrompt = mockCallGeminiWithBreaker.mock.calls[0][0];
+    expect(calledPrompt).not.toContain('Similar past PRs show');
+    expect(mockCreateReview).toHaveBeenCalled();
+    expect(mockInc).toHaveBeenCalledWith({ status: 'success' });
+  });
+
+  // ── 11. RAG search failure — graceful fallback ──────────────────────────────
+  it('should continue the review without context if RAG search throws', async () => {
+    mockSearchSimilarPRs.mockRejectedValue(new Error('ChromaDB unreachable'));
+
+    await processReviewJob(mockJob);
+
+    const calledPrompt = mockCallGeminiWithBreaker.mock.calls[0][0];
+    expect(calledPrompt).not.toContain('Similar past PRs show');
+    expect(mockCreateReview).toHaveBeenCalled();
+    expect(mockUpsert).toHaveBeenCalled();
+    expect(mockInc).toHaveBeenCalledWith({ status: 'success' });
+  });
+
+  // ── 12. RAG indexing after a successful review ──────────────────────────────
+  it('should index the reviewed PR into the RAG store after a successful review', async () => {
+    await processReviewJob(mockJob);
+
+    expect(mockEmbedAndStore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoFullName: 'test-owner/test-repo',
+        prNumber: 42,
+        headSha: 'abc123headsha',
+        title: 'Fix critical bug in auth flow',
+        summary: expect.stringContaining('Hardcoded credentials'),
+      }),
+    );
+  });
+
+  // ── 13. RAG indexing failure does not fail the job ──────────────────────────
+  it('should not fail the job if RAG indexing throws after a successful review', async () => {
+    mockEmbedAndStore.mockRejectedValue(new Error('ChromaDB unreachable'));
+
+    await processReviewJob(mockJob);
+
+    expect(mockCreateReview).toHaveBeenCalled();
+    expect(mockInc).toHaveBeenCalledWith({ status: 'success' });
   });
 });
