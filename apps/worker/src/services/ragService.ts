@@ -1,4 +1,4 @@
-import { ChromaClient, Collection } from 'chromadb';
+import { ChromaClient, CloudClient, Collection } from 'chromadb';
 import type { FeatureExtractionPipeline } from '@xenova/transformers';
 
 const COLLECTION_NAME = 'pr_reviews';
@@ -56,7 +56,17 @@ function buildId(repoFullName: string, prNumber: number, headSha: string): strin
 export async function initializeRAG(): Promise<Collection> {
   if (collection) return collection;
 
-  client = new ChromaClient({ path: CHROMA_URL });
+  if (process.env.CHROMA_API_KEY) {
+    client = new CloudClient({
+      apiKey: process.env.CHROMA_API_KEY,
+      tenant: process.env.CHROMA_TENANT,
+      database: process.env.CHROMA_DATABASE,
+    });
+    console.log('[RAG] Connected to Chroma Cloud');
+  } else {
+    client = new ChromaClient({ path: CHROMA_URL });
+    console.log('[RAG] Connected to local Chroma at ' + CHROMA_URL);
+  }
   collection = await client.getOrCreateCollection({ name: COLLECTION_NAME });
 
   await getEmbedder();
