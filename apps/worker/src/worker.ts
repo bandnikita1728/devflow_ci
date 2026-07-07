@@ -195,18 +195,24 @@ export async function processReviewJob(job: Job): Promise<void> {
       .join('diff --git');
 
     // ── Step 1b: RAG — find similar past PRs for extra review context ────
+    // Best-effort: if the RAG search fails for any reason (Chroma down, model
+    // load error, etc.) we log it and continue the review without context.
     let ragContext = '';
-    const similarPRs = await searchSimilarPRs(filteredDiff, 3);
-    if (similarPRs.length > 0) {
-      ragContext = similarPRs
-        .map(p => {
-          const change = p.summary ? `${p.title} — ${p.summary}` : p.title;
-          return `PR#${p.prNumber} (${change})`;
-        })
-        .join(', ');
-      console.log(`[Worker] RAG context injected for PR #${number}: ${ragContext}`);
-    } else {
-      console.log(`[Worker] RAG search found no similar PRs for #${number}. Reviewing without context.`);
+    try {
+      const similarPRs = await searchSimilarPRs(filteredDiff, 3);
+      if (similarPRs.length > 0) {
+        ragContext = similarPRs
+          .map(p => {
+            const change = p.summary ? `${p.title} — ${p.summary}` : p.title;
+            return `PR#${p.prNumber} (${change})`;
+          })
+          .join(', ');
+        console.log(`[Worker] RAG context injected for PR #${number}: ${ragContext}`);
+      } else {
+        console.log(`[Worker] RAG search found no similar PRs for #${number}. Reviewing without context.`);
+      }
+    } catch (err) {
+      console.warn(`[Worker] RAG search failed for PR #${number}, continuing without context:`, err);
     }
 
     // ── Step 2: Analyze code with Gemini ─────────────────────────────────
@@ -325,19 +331,24 @@ export async function processReviewJob(job: Job): Promise<void> {
     console.log(`[Worker] Database save successful!`);
 
     // ── Step 5: Index this PR into the RAG store for future similarity search ──
-    const commentSummary = reviewComments
-      .slice(0, 5)
-      .map(c => `[${c.severity}/${c.category}] ${c.title}`)
-      .join('; ');
-    await embedAndStore({
-      repoFullName: repositoryFullName as string,
-      prNumber: number,
-      headSha: (headSha as string) || '',
-      title: prTitle || '',
-      diff: filteredDiff,
-      summary: commentSummary,
-    });
-    console.log(`[Worker] Indexed PR #${number} into RAG store for future similarity search.`);
+    // Best-effort: indexing failure must not fail an otherwise successful review.
+    try {
+      const commentSummary = reviewComments
+        .slice(0, 5)
+        .map(c => `[${c.severity}/${c.category}] ${c.title}`)
+        .join('; ');
+      await embedAndStore({
+        repoFullName: repositoryFullName as string,
+        prNumber: number,
+        headSha: (headSha as string) || '',
+        title: prTitle || '',
+        diff: filteredDiff,
+        summary: commentSummary,
+      });
+      console.log(`[Worker] Indexed PR #${number} into RAG store for future similarity search.`);
+    } catch (err) {
+      console.warn(`[Worker] Failed to index PR #${number} into RAG store (non-fatal):`, err);
+    }
 
     console.log(`[Worker] Successfully completed review for PR #${number}`);
 
