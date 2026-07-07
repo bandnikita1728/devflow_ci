@@ -9,7 +9,7 @@ import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import { generateCodeReview } from './services/geminiService';
 import { formatComment, limitCommentLength } from './services/commentFormatter';
-import { searchSimilarPRs } from './services/ragService';
+import { searchSimilarPRs, embedAndStore } from './services/ragService';
 import {
   startQueueDepthPoller,
   startMetricsServer,
@@ -221,7 +221,8 @@ export async function processReviewJob(job: Job): Promise<void> {
         headSha,
         repositoryFullName,
         bullmqJobId: job.id,
-      }
+      },
+      ragContext
     );
 
     if (fallback) {
@@ -322,6 +323,21 @@ export async function processReviewJob(job: Job): Promise<void> {
       }))
     });
     console.log(`[Worker] Database save successful!`);
+
+    // ── Step 5: Index this PR into the RAG store for future similarity search ──
+    const commentSummary = reviewComments
+      .slice(0, 5)
+      .map(c => `[${c.severity}/${c.category}] ${c.title}`)
+      .join('; ');
+    await embedAndStore({
+      repoFullName: repositoryFullName as string,
+      prNumber: number,
+      headSha: (headSha as string) || '',
+      title: prTitle || '',
+      diff: filteredDiff,
+      summary: commentSummary,
+    });
+    console.log(`[Worker] Indexed PR #${number} into RAG store for future similarity search.`);
 
     console.log(`[Worker] Successfully completed review for PR #${number}`);
 
