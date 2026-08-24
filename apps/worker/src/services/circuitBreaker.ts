@@ -100,8 +100,12 @@ function sanitizeError(err: any): string {
 }
 
 // ── Opossum Circuit Breaker Instance ─────────────────────────────────────────
+// Gemini 2.5 Flash on a real diff (especially a cold Render instance) can take
+// well over 15s. Default to 30s and allow overriding via GEMINI_TIMEOUT_MS.
+const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 30000;
+
 const breakerOptions: CircuitBreaker.Options = {
-  timeout: 15000,                  // Gemini must respond in 15s
+  timeout: GEMINI_TIMEOUT_MS,      // Gemini must respond within this many ms
   errorThresholdPercentage: 50,    // Open if >50% fail
   resetTimeout: 30000,            // Try half-open after 30s
   volumeThreshold: 5,             // Min 5 calls before checking threshold

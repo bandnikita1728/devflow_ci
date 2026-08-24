@@ -56,7 +56,10 @@ function buildId(repoFullName: string, prNumber: number, headSha: string): strin
 export async function initializeRAG(): Promise<Collection> {
   if (collection) return collection;
 
-  if (process.env.CHROMA_API_KEY) {
+  const usingCloud = !!process.env.CHROMA_API_KEY;
+  const endpoint = usingCloud ? 'Chroma Cloud' : CHROMA_URL;
+
+  if (usingCloud) {
     client = new CloudClient({
       apiKey: process.env.CHROMA_API_KEY,
       tenant: process.env.CHROMA_TENANT,
@@ -67,11 +70,19 @@ export async function initializeRAG(): Promise<Collection> {
     client = new ChromaClient({ path: CHROMA_URL });
     console.log('[RAG] Connected to local Chroma at ' + CHROMA_URL);
   }
-  collection = await client.getOrCreateCollection({ name: COLLECTION_NAME });
+
+  // We supply our own vectors via @xenova/transformers, so Chroma must never
+  // embed anything. Passing embeddingFunction: null skips the default embedding
+  // function; otherwise chromadb tries to construct DefaultEmbeddingFunction
+  // (@chroma-core/default-embed) and throws when it isn't installed.
+  collection = await client.getOrCreateCollection({
+    name: COLLECTION_NAME,
+    embeddingFunction: null,
+  });
 
   await getEmbedder();
 
-  console.log(`[RAG] ChromaDB collection "${COLLECTION_NAME}" ready at ${CHROMA_URL}`);
+  console.log(`[RAG] ChromaDB collection "${COLLECTION_NAME}" ready at ${endpoint}`);
   return collection;
 }
 
